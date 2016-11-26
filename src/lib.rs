@@ -7,9 +7,10 @@ impl_rdp! {
     grammar! {
         program     = { template ~ eoi }
         template    = { statement* }
-        statement   = { content | variable | section | inverted | comment | partial }
+        statement   = { content | variable | html | section | inverted | comment | partial }
         content     = @{ (!open ~ any)+ }
         variable    = { open ~ path ~ close }
+        html        = { ["{{{"] ~ path ~ ["}}}"]}
         section     = { ["{{#"] ~ path ~ close ~ template ~ ["{{/"] ~ path ~ close }
         inverted    = { ["{{^"] ~ path ~ close ~ template ~ ["{{/"] ~ path ~ close }
         comment     = { ["{{!"] ~ (!close ~ any)* ~ close }
@@ -130,6 +131,18 @@ mod tests {
     }
 
     #[test]
+    fn html() {
+        let mut parser = Rdp::new(StringInput::new("{{{ a }}}"));
+        assert!(parser.html());
+        assert!(parser.end());
+
+        let expected = vec![Token::new(Rule::html, 0, 9),
+                            Token::new(Rule::path, 4, 5),
+                            Token::new(Rule::identifier, 4, 5)];
+        assert_eq!(&expected, parser.queue());
+    }
+
+    #[test]
     fn program() {
         let mut parser = Rdp::new(StringInput::new("
             {{> includes/header }}
@@ -143,12 +156,13 @@ mod tests {
                 {{/ robots}}
             </ul>
             {{> includes/footer }}
+            {{{ unescaped.html }}}
         "));
         assert!(parser.program());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::program, 0, 345),
-                            Token::new(Rule::template, 0, 336),
+        let expected = vec![Token::new(Rule::program, 0, 380),
+                            Token::new(Rule::template, 0, 371),
                             Token::new(Rule::statement, 0, 13),
                             Token::new(Rule::content, 0, 13),
                             Token::new(Rule::statement, 13, 35),
@@ -195,7 +209,12 @@ mod tests {
                             Token::new(Rule::statement, 314, 336),
                             Token::new(Rule::partial, 314, 336),
                             Token::new(Rule::partial_id, 318, 333),
-                            Token::new(Rule::close, 334, 336)];
+                            Token::new(Rule::close, 334, 336),
+                            Token::new(Rule::statement, 349, 371),
+                            Token::new(Rule::html, 349, 371),
+                            Token::new(Rule::path, 353, 367),
+                            Token::new(Rule::identifier, 353, 362),
+                            Token::new(Rule::identifier, 363, 367)];
         assert_eq!(&expected, parser.queue());
     }
 }
