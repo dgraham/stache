@@ -7,13 +7,13 @@ impl_rdp! {
     grammar! {
         program     = { template ~ eoi }
         template    = { statement* }
-        statement   = { content | variable | html | section | inverted | comment | partial }
+        statement   = { content | variable | html | section | inverted | partial }
         content     = @{ (!open ~ any)+ }
         variable    = { open ~ path ~ close }
         html        = { ["{{{"] ~ path ~ ["}}}"]}
         section     = { ["{{#"] ~ path ~ close ~ template ~ ["{{/"] ~ path ~ close }
         inverted    = { ["{{^"] ~ path ~ close ~ template ~ ["{{/"] ~ path ~ close }
-        comment     = { ["{{!"] ~ (!close ~ any)* ~ close }
+        comment     = _{ ["{{!"] ~ (!close ~ any)* ~ close }
         partial     = { ["{{>"] ~ partial_id ~ close }
         partial_id  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["/"])+ }
         open        = _{ ["{{"] }
@@ -77,9 +77,7 @@ mod tests {
         let mut parser = Rdp::new(StringInput::new("{{! a b c}}"));
         assert!(parser.comment());
         assert!(parser.end());
-
-        let expected = vec![Token::new(Rule::comment, 0, 11)];
-        assert_eq!(&expected, parser.queue());
+        assert!(parser.queue().is_empty());
     }
 
     #[test]
@@ -182,7 +180,6 @@ mod tests {
                             Token::new(Rule::inverted, 173, 283),
                             Token::new(Rule::path, 177, 183),
                             Token::new(Rule::identifier, 177, 183),
-                            Token::new(Rule::comment, 206, 224),
                             Token::new(Rule::template, 245, 271),
                             Token::new(Rule::statement, 245, 271),
                             Token::new(Rule::content, 245, 271),
