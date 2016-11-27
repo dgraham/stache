@@ -5,14 +5,14 @@ use pest::prelude::*;
 
 impl_rdp! {
     grammar! {
-        program     = { template ~ eoi }
-        template    = { statement* }
+        program     = { block ~ eoi }
+        block       = { statement* }
         statement   = { content | variable | html | section | inverted | partial }
         content     = @{ (!open ~ any)+ }
         variable    = { open ~ path ~ close }
         html        = { ["{{{"] ~ path ~ ["}}}"]}
-        section     = { ["{{#"] ~ path ~ close ~ template ~ ["{{/"] ~ path ~ close }
-        inverted    = { ["{{^"] ~ path ~ close ~ template ~ ["{{/"] ~ path ~ close }
+        section     = { ["{{#"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
+        inverted    = { ["{{^"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
         comment     = _{ ["{{!"] ~ (!close ~ any)* ~ close }
         partial     = { ["{{>"] ~ partial_id ~ close }
         partial_id  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["/"])+ }
@@ -152,7 +152,7 @@ mod tests {
         assert!(parser.end());
 
         let expected = vec![Token::new(Rule::program, 0, 380),
-                            Token::new(Rule::template, 0, 371),
+                            Token::new(Rule::block, 0, 371),
                             Token::new(Rule::statement, 0, 13),
                             Token::new(Rule::content, 0, 13),
                             Token::new(Rule::statement, 13, 35),
@@ -164,7 +164,7 @@ mod tests {
                             Token::new(Rule::section, 69, 156),
                             Token::new(Rule::path, 73, 79),
                             Token::new(Rule::identifier, 73, 79),
-                            Token::new(Rule::template, 102, 144),
+                            Token::new(Rule::block, 102, 144),
                             Token::new(Rule::statement, 102, 106),
                             Token::new(Rule::content, 102, 106),
                             Token::new(Rule::statement, 106, 122),
@@ -180,7 +180,7 @@ mod tests {
                             Token::new(Rule::inverted, 173, 283),
                             Token::new(Rule::path, 177, 183),
                             Token::new(Rule::identifier, 177, 183),
-                            Token::new(Rule::template, 245, 271),
+                            Token::new(Rule::block, 245, 271),
                             Token::new(Rule::statement, 245, 271),
                             Token::new(Rule::content, 245, 271),
                             Token::new(Rule::path, 275, 281),
