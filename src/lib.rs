@@ -16,8 +16,8 @@ impl_rdp! {
         comment     = { ["{{!"] ~ (!close ~ any)* ~ close }
         partial     = { ["{{>"] ~ partial_id ~ close }
         partial_id  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["/"])+ }
-        open        = { ["{{"] }
-        close       = { ["}}"] }
+        open        = _{ ["{{"] }
+        close       = _{ ["}}"] }
         path        = @{ identifier ~ (["."] ~ identifier)* }
         identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"])+ }
         whitespace  = _{ [" "] | ["\t"] | ["\r"] | ["\n"]}
@@ -68,9 +68,7 @@ mod tests {
         assert!(parser.partial());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::partial, 0, 9),
-                            Token::new(Rule::partial_id, 4, 7),
-                            Token::new(Rule::close, 7, 9)];
+        let expected = vec![Token::new(Rule::partial, 0, 9), Token::new(Rule::partial_id, 4, 7)];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -80,7 +78,7 @@ mod tests {
         assert!(parser.comment());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::comment, 0, 11), Token::new(Rule::close, 9, 11)];
+        let expected = vec![Token::new(Rule::comment, 0, 11)];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -93,10 +91,8 @@ mod tests {
         let expected = vec![Token::new(Rule::inverted, 0, 14),
                             Token::new(Rule::path, 4, 5),
                             Token::new(Rule::identifier, 4, 5),
-                            Token::new(Rule::close, 5, 7),
                             Token::new(Rule::path, 11, 12),
-                            Token::new(Rule::identifier, 11, 12),
-                            Token::new(Rule::close, 12, 14)];
+                            Token::new(Rule::identifier, 11, 12)];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -109,10 +105,8 @@ mod tests {
         let expected = vec![Token::new(Rule::section, 0, 14),
                             Token::new(Rule::path, 4, 5),
                             Token::new(Rule::identifier, 4, 5),
-                            Token::new(Rule::close, 5, 7),
                             Token::new(Rule::path, 11, 12),
-                            Token::new(Rule::identifier, 11, 12),
-                            Token::new(Rule::close, 12, 14)];
+                            Token::new(Rule::identifier, 11, 12)];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -123,10 +117,8 @@ mod tests {
         assert!(parser.end());
 
         let expected = vec![Token::new(Rule::variable, 0, 7),
-                            Token::new(Rule::open, 0, 2),
                             Token::new(Rule::path, 3, 4),
-                            Token::new(Rule::identifier, 3, 4),
-                            Token::new(Rule::close, 5, 7)];
+                            Token::new(Rule::identifier, 3, 4)];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -168,48 +160,39 @@ mod tests {
                             Token::new(Rule::statement, 13, 35),
                             Token::new(Rule::partial, 13, 35),
                             Token::new(Rule::partial_id, 17, 32),
-                            Token::new(Rule::close, 33, 35),
                             Token::new(Rule::statement, 48, 69),
                             Token::new(Rule::content, 48, 69),
                             Token::new(Rule::statement, 69, 156),
                             Token::new(Rule::section, 69, 156),
                             Token::new(Rule::path, 73, 79),
                             Token::new(Rule::identifier, 73, 79),
-                            Token::new(Rule::close, 79, 81),
                             Token::new(Rule::template, 102, 144),
                             Token::new(Rule::statement, 102, 106),
                             Token::new(Rule::content, 102, 106),
                             Token::new(Rule::statement, 106, 122),
                             Token::new(Rule::variable, 106, 122),
-                            Token::new(Rule::open, 106, 108),
                             Token::new(Rule::path, 109, 119),
                             Token::new(Rule::identifier, 109, 113),
                             Token::new(Rule::identifier, 114, 119),
-                            Token::new(Rule::close, 120, 122),
                             Token::new(Rule::statement, 122, 144),
                             Token::new(Rule::content, 122, 144),
                             Token::new(Rule::path, 148, 154),
                             Token::new(Rule::identifier, 148, 154),
-                            Token::new(Rule::close, 154, 156),
                             Token::new(Rule::statement, 173, 283),
                             Token::new(Rule::inverted, 173, 283),
                             Token::new(Rule::path, 177, 183),
                             Token::new(Rule::identifier, 177, 183),
-                            Token::new(Rule::close, 183, 185),
                             Token::new(Rule::comment, 206, 224),
-                            Token::new(Rule::close, 222, 224),
                             Token::new(Rule::template, 245, 271),
                             Token::new(Rule::statement, 245, 271),
                             Token::new(Rule::content, 245, 271),
                             Token::new(Rule::path, 275, 281),
                             Token::new(Rule::identifier, 275, 281),
-                            Token::new(Rule::close, 281, 283),
                             Token::new(Rule::statement, 296, 314),
                             Token::new(Rule::content, 296, 314),
                             Token::new(Rule::statement, 314, 336),
                             Token::new(Rule::partial, 314, 336),
                             Token::new(Rule::partial_id, 318, 333),
-                            Token::new(Rule::close, 334, 336),
                             Token::new(Rule::statement, 349, 371),
                             Token::new(Rule::html, 349, 371),
                             Token::new(Rule::path, 353, 367),
