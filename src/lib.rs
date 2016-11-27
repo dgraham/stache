@@ -3,6 +3,27 @@ extern crate pest;
 
 use pest::prelude::*;
 
+#[derive(Debug, PartialEq)]
+pub struct Block {
+    statements: Vec<Statement>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Path {
+    keys: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Statement {
+    Program(Block),
+    Section(Path, Block),
+    Inverted(Path, Block),
+    Variable(Path),
+    Html(Path),
+    Partial(String),
+    Content(String),
+}
+
 impl_rdp! {
     grammar! {
         program     = { block ~ eoi }
@@ -22,12 +43,80 @@ impl_rdp! {
         identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"])+ }
         whitespace  = _{ [" "] | ["\t"] | ["\r"] | ["\n"]}
     }
+
+    process! {
+        tree(&self) -> Statement {
+            (_: program, block: _block()) => {
+                Statement::Program(block)
+            }
+        }
+
+        _block(&self) -> Block {
+            (_: block, list: _statements()) => {
+                Block { statements: list }
+            }
+        }
+
+        _statements(&self) -> Vec<Statement> {
+            (_: statement, head: _statement(), mut tail: _statements()) => {
+                tail.insert(0, head);
+                tail
+            },
+            () => {
+                Vec::new()
+            }
+        }
+
+        _statement(&self) -> Statement {
+            (&text: content) => {
+                Statement::Content(String::from(text))
+            },
+            (_: variable, path: _path()) => {
+                Statement::Variable(path)
+            },
+            (_: html, path: _path()) => {
+                Statement::Html(path)
+            },
+            (_: partial, &name: partial_id) => {
+                Statement::Partial(String::from(name))
+            },
+            (_: section, open: _path(), block: _block(), close: _path()) => {
+                if open != close {
+                    panic!("Section open and close paths must match");
+                }
+                Statement::Section(open, block)
+            },
+            (_: inverted, open: _path(), block: _block(), close: _path()) => {
+                if open != close {
+                    panic!("Section open and close paths must match");
+                }
+                Statement::Inverted(open, block)
+            }
+        }
+
+        _path(&self) -> Path {
+            (_: path, list: _identifier()) => {
+                Path { keys: list }
+            }
+        }
+
+        _identifier(&self) -> Vec<String> {
+            (&head: identifier, mut tail: _identifier()) => {
+                tail.insert(0, String::from(head));
+                tail
+            },
+            () => {
+                Vec::new()
+            }
+        }
+    }
+}
 }
 
 #[cfg(test)]
 mod tests {
     use pest::prelude::*;
-    use super::{Rdp, Rule};
+    use super::{Block, Path, Rdp, Rule, Statement};
 
     #[test]
     fn identifier() {
@@ -196,5 +285,51 @@ mod tests {
                             Token::new(Rule::identifier, 353, 362),
                             Token::new(Rule::identifier, 363, 367)];
         assert_eq!(&expected, parser.queue());
+    }
+
+    #[test]
+    fn tree() {
+        let mut parser = Rdp::new(StringInput::new("
+            {{> includes/header }}
+            <ul>
+                {{# robots}}
+                    <li>{{ name.first }}</li>
+                {{/ robots}}
+                {{^ robots}}
+                    {{! else clause }}
+                    No robots
+                {{/ robots}}
+            </ul>
+            {{> includes/footer }}
+            {{{ unescaped.html }}}
+        "));
+
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let list =
+            vec![Statement::Content(String::from("<li>")),
+                 Statement::Variable(Path { keys: vec!["name".to_string(), "first".to_string()] }),
+                 Statement::Content(String::from("</li>\n                "))];
+
+        let section = Statement::Section(Path { keys: vec![String::from("robots")] },
+                                         Block { statements: list });
+
+        let invblock = vec![Statement::Content("No robots\n                ".to_string())];
+        let inverted = Statement::Inverted(Path { keys: vec![String::from("robots")] },
+                                           Block { statements: invblock });
+
+        let program =
+            vec![Statement::Content(String::from("\n            ")),
+                 Statement::Partial(String::from("includes/header")),
+                 Statement::Content(String::from("<ul>\n                ")),
+                 section,
+                 inverted,
+                 Statement::Content(String::from("</ul>\n            ")),
+                 Statement::Partial(String::from("includes/footer")),
+                 Statement::Html(Path { keys: vec!["unescaped".to_string(), "html".to_string()] })];
+        let expected = Statement::Program(Block { statements: program });
+
+        assert_eq!(expected, parser.tree());
     }
 }
