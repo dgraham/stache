@@ -1,9 +1,11 @@
 #[macro_use]
 extern crate pest;
 
+use error::ParseError;
 use path::Path;
 use pest::prelude::*;
 
+mod error;
 mod path;
 
 #[derive(Debug, PartialEq)]
@@ -43,52 +45,57 @@ impl_rdp! {
     }
 
     process! {
-        tree(&self) -> Statement {
+        tree(&self) -> Result<Statement, ParseError> {
             (_: program, block: _block()) => {
-                Statement::Program(block)
+                Ok(Statement::Program(block?))
             }
         }
 
-        _block(&self) -> Block {
+        _block(&self) -> Result<Block, ParseError> {
             (_: block, list: _statements()) => {
-                Block { statements: list }
+                Ok(Block { statements: list? })
             }
         }
 
-        _statements(&self) -> Vec<Statement> {
-            (_: statement, head: _statement(), mut tail: _statements()) => {
-                tail.insert(0, head);
-                tail
+        _statements(&self) -> Result<Vec<Statement>, ParseError> {
+            (_: statement, head: _statement(), tail: _statements()) => {
+                match tail {
+                    Ok(mut tail) => {
+                        tail.insert(0, head?);
+                        Ok(tail)
+                    }
+                    Err(e) => Err(e),
+                }
             },
             () => {
-                Vec::new()
+                Ok(Vec::new())
             }
         }
 
-        _statement(&self) -> Statement {
+        _statement(&self) -> Result<Statement, ParseError> {
             (&text: content) => {
-                Statement::Content(String::from(text))
+                Ok(Statement::Content(String::from(text)))
             },
             (_: variable, path: _path()) => {
-                Statement::Variable(path)
+                Ok(Statement::Variable(path))
             },
             (_: html, path: _path()) => {
-                Statement::Html(path)
+                Ok(Statement::Html(path))
             },
             (_: partial, &name: partial_id) => {
-                Statement::Partial(String::from(name))
+                Ok(Statement::Partial(String::from(name)))
             },
             (_: section, open: _path(), block: _block(), close: _path()) => {
                 if open != close {
-                    panic!("Section open and close paths must match");
+                    return Err(ParseError::InvalidSection(open, close));
                 }
-                Statement::Section(open, block)
+                Ok(Statement::Section(open, block?))
             },
             (_: inverted, open: _path(), block: _block(), close: _path()) => {
                 if open != close {
-                    panic!("Section open and close paths must match");
+                    return Err(ParseError::InvalidSection(open, close));
                 }
-                Statement::Inverted(open, block)
+                Ok(Statement::Inverted(open, block?))
             }
         }
 
@@ -114,6 +121,7 @@ impl_rdp! {
 mod tests {
     use pest::prelude::*;
     use super::{Block, Rdp, Rule, Statement};
+    use super::error::ParseError;
     use super::path::Path;
 
     #[test]
@@ -286,6 +294,17 @@ mod tests {
     }
 
     #[test]
+    fn invalid_section() {
+        let mut parser = Rdp::new(StringInput::new("{{#one}}test{{/two}}"));
+        assert!(parser.program());
+        assert!(parser.end());
+        match parser.tree() {
+            Err(ParseError::InvalidSection(..)) => (),
+            _ => panic!("Must enforce matching section paths"),
+        }
+    }
+
+    #[test]
     fn tree() {
         let mut parser = Rdp::new(StringInput::new("
             {{> includes/header }}
@@ -328,6 +347,9 @@ mod tests {
                                                           String::from("html")]))];
         let expected = Statement::Program(Block { statements: program });
 
-        assert_eq!(expected, parser.tree());
+        match parser.tree() {
+            Ok(tree) => assert_eq!(expected, tree),
+            Err(e) => panic!("{}", e),
+        }
     }
 }
