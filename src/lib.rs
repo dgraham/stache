@@ -31,7 +31,7 @@ impl_rdp! {
         statement   = { content | variable | html | section | inverted | partial }
         content     = @{ (!open ~ any)+ }
         variable    = { open ~ path ~ close }
-        html        = { ["{{{"] ~ path ~ ["}}}"]}
+        html        = { ["{{{"] ~ path ~ ["}}}"] }
         section     = { ["{{#"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
         inverted    = { ["{{^"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
         comment     = _{ ["{{!"] ~ (!close ~ any)* ~ close }
@@ -110,7 +110,6 @@ impl_rdp! {
             }
         }
     }
-}
 }
 
 #[cfg(test)]
