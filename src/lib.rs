@@ -3,6 +3,7 @@ extern crate pest;
 extern crate regex;
 
 use pest::prelude::*;
+use std::io::{self, Write};
 
 pub use error::ParseError;
 pub use name::Name;
@@ -14,6 +15,13 @@ mod error;
 mod name;
 mod path;
 mod template;
+
+/// Defines the source code output behavior for compiler backends. The main
+/// compiler driver treats the result of each backend identically.
+pub trait Compile {
+    /// Writes the final translated source code to an output buffer.
+    fn emit(&self, buf: &mut Write) -> io::Result<()>;
+}
 
 #[derive(Debug, PartialEq)]
 pub struct Block {
@@ -43,9 +51,7 @@ impl Statement {
             Statement::Inverted(_, ref block) => {
                 block.statements.iter().flat_map(|stmt| stmt.partials()).collect()
             }
-            Statement::Partial(ref name) => {
-                vec![name]
-            }
+            Statement::Partial(ref name) => vec![name],
             _ => Vec::new(),
         }
     }

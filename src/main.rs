@@ -10,7 +10,7 @@ use std::process::exit;
 
 use getopts::Options;
 use pest::{Parser, StringInput};
-use stache::{Rdp, Statement, Template};
+use stache::{Compile, Rdp, Statement, Template};
 use stache::ruby;
 
 enum Target {
@@ -54,7 +54,7 @@ fn main() {
     }
 
     let output = match matches.opt_str("o") {
-        Some(path) => path,
+        Some(path) => PathBuf::from(path),
         None => {
             usage(&opts);
             exit(1);
@@ -86,21 +86,13 @@ fn main() {
         }
     };
 
-    let source = match target {
+    let done = match target {
         Target::Ruby => {
-            match ruby::link(&templates) {
-                Ok(node) => node,
-                Err(e) => {
-                    println!("{}", e);
-                    exit(1);
-                }
-            }
+            ruby::link(&templates)
+                .map_err(|e| io::Error::new(ErrorKind::Other, e))
+                .and_then(|program| write(&program, &output))
         }
     };
-
-    let done = File::create(output)
-        .map(|file| BufWriter::new(file))
-        .and_then(|mut buf| source.emit(&mut buf));
 
     match done {
         Ok(_) => (),
@@ -109,6 +101,12 @@ fn main() {
             exit(1);
         }
     }
+}
+
+fn write<T: Compile>(source: &T, output: &Path) -> io::Result<()> {
+    File::create(output)
+        .map(|file| BufWriter::new(file))
+        .and_then(|mut buf| source.emit(&mut buf))
 }
 
 fn parse_dir(base: &PathBuf, dir: &PathBuf) -> io::Result<Vec<Template>> {

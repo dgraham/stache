@@ -4,7 +4,7 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::io::{self, Write};
 
-use super::{Name, ParseError, Path, Statement, Template};
+use super::{Compile, Name, ParseError, Path, Statement, Template};
 use self::runtime::RUNTIME;
 
 mod runtime;
@@ -28,13 +28,15 @@ impl Program {
         self.global.merge(scope);
         self
     }
+}
 
+impl Compile for Program {
     /// Writes the final translated source code to an output buffer.
     ///
     /// This emits fully-formed Ruby extension source code that may be input
     /// into a mkmf build process, creating a dynamically loadable shared
     /// object file.
-    pub fn emit(&self, buf: &mut Write) -> io::Result<()> {
+    fn emit(&self, buf: &mut Write) -> io::Result<()> {
         // Emit runtime preamble.
         writeln!(buf, "{}", RUNTIME)?;
 
