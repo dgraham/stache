@@ -4,8 +4,9 @@ use regex::Regex;
 use std::fmt;
 
 /// An identifier name generator.
+#[derive(Debug)]
 pub struct Name {
-    base: String,
+    pub base: String,
     next: usize,
 }
 

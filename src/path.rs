@@ -2,7 +2,7 @@ use std::fmt;
 
 #[derive(Debug, PartialEq)]
 pub struct Path {
-    keys: Vec<String>,
+    pub keys: Vec<String>,
 }
 
 impl Path {

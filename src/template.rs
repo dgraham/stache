@@ -2,11 +2,12 @@ use std::path::{Path, PathBuf};
 use super::{Name, Statement};
 
 // A binding of template source file information and the parsed AST.
+#[derive(Debug)]
 pub struct Template {
     pub tree: Statement,
     pub path: PathBuf,
     pub name: String,
-    pub id: String,
+    id: String,
 }
 
 impl Template {
@@ -25,6 +26,10 @@ impl Template {
             name: name,
             id: id,
         }
+    }
+
+    pub fn name(&self) -> Name {
+        Name::new(&self.name)
     }
 }
 

@@ -1,10 +1,12 @@
 use std::error::Error;
 use std::fmt;
-use path::Path;
+use std::path::PathBuf;
+use super::Path;
 
 #[derive(Debug)]
 pub enum ParseError {
     InvalidSection(Path, Path),
+    UnknownPartial(String, PathBuf),
 }
 
 impl fmt::Display for ParseError {
@@ -12,6 +14,9 @@ impl fmt::Display for ParseError {
         match *self {
             ParseError::InvalidSection(ref open, ref close) => {
                 write!(f, "Section open and close must match: {}, {}", open, close)
+            }
+            ParseError::UnknownPartial(ref name, ref path) => {
+                write!(f, "Undefined partial `{}` called in {:?}", name, path)
             }
         }
     }
@@ -21,6 +26,7 @@ impl Error for ParseError {
     fn description(&self) -> &str {
         match *self {
             ParseError::InvalidSection(..) => "Section open and close must match",
+            ParseError::UnknownPartial(..) => "Undefined partial called",
         }
     }
 

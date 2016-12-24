@@ -1,12 +1,19 @@
 #[macro_use]
 extern crate pest;
+extern crate regex;
 
-use error::ParseError;
-use path::Path;
 use pest::prelude::*;
 
+pub use error::ParseError;
+pub use name::Name;
+pub use path::Path;
+pub use template::Template;
+
+pub mod ruby;
 mod error;
+mod name;
 mod path;
+mod template;
 
 #[derive(Debug, PartialEq)]
 pub struct Block {
@@ -22,6 +29,26 @@ pub enum Statement {
     Html(Path),
     Partial(String),
     Content(String),
+}
+
+impl Statement {
+    pub fn partials<'a>(&'a self) -> Vec<&'a String> {
+        match *self {
+            Statement::Program(ref block) => {
+                block.statements.iter().flat_map(|stmt| stmt.partials()).collect()
+            }
+            Statement::Section(_, ref block) => {
+                block.statements.iter().flat_map(|stmt| stmt.partials()).collect()
+            }
+            Statement::Inverted(_, ref block) => {
+                block.statements.iter().flat_map(|stmt| stmt.partials()).collect()
+            }
+            Statement::Partial(ref name) => {
+                vec![name]
+            }
+            _ => Vec::new(),
+        }
+    }
 }
 
 impl_rdp! {
@@ -120,9 +147,7 @@ impl_rdp! {
 #[cfg(test)]
 mod tests {
     use pest::prelude::*;
-    use super::{Block, Rdp, Rule, Statement};
-    use super::error::ParseError;
-    use super::path::Path;
+    use super::{Block, Path, ParseError, Rdp, Rule, Statement};
 
     #[test]
     fn identifier() {

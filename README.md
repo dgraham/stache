@@ -8,7 +8,8 @@ A [Mustache] template [compiler].
 ## Usage
 
 ```
-$ stache person.mustache -o person.o
+$ stache -d app/templates/ -o templates.c --emit=ruby
+$ stache -d app/templates/ -o templates.c --emit=ruby && clang-format -i -style=webkit templates.c
 ```
 
 ## Development
