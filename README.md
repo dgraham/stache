@@ -1,9 +1,8 @@
 # Stache
 
-A [Mustache] template [compiler].
+A [Mustache] template compiler.
 
 [Mustache]: http://mustache.github.io
-[compiler]: http://llvm.org
 
 ## Usage
 
