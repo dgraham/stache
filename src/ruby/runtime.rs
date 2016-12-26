@@ -50,20 +50,16 @@ static VALUE fetch_path(VALUE stack, VALUE path) {
 static void append_value(VALUE buf, VALUE stack, VALUE path, bool escape) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
-        case T_STRING:
-            if (escape) {
-                value = escape_html(value);
-            }
-            rb_str_buf_append(buf, value);
-            break;
         case T_NIL:
         case T_UNDEF:
+            return;
+        case T_STRING:
             break;
         default:
-            value = rb_any_to_s(value);
-            rb_str_buf_append(buf, value);
+            value = rb_funcall(value, rb_intern("to_s"), 0);
             break;
     }
+    rb_str_buf_append(buf, escape ? escape_html(value) : value);
 }
 
 static void section(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VALUE)) {
