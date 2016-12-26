@@ -64,7 +64,7 @@ impl_rdp! {
         statement   = { content | variable | html | section | inverted | partial }
         content     = @{ (!open ~ any)+ }
         variable    = { open ~ path ~ close }
-        html        = { ["{{{"] ~ path ~ ["}}}"] }
+        html        = { (["{{{"] ~ path ~ ["}}}"]) | (["{{&"] ~ path ~ ["}}"]) }
         section     = { ["{{#"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
         inverted    = { ["{{^"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
         comment     = _{ ["{{!"] ~ (!close ~ any)* ~ close }
@@ -253,6 +253,18 @@ mod tests {
         assert!(parser.end());
 
         let expected = vec![Token::new(Rule::html, 0, 9),
+                            Token::new(Rule::path, 4, 5),
+                            Token::new(Rule::identifier, 4, 5)];
+        assert_eq!(&expected, parser.queue());
+    }
+
+    #[test]
+    fn html_ampersand() {
+        let mut parser = Rdp::new(StringInput::new("{{& a }}"));
+        assert!(parser.html());
+        assert!(parser.end());
+
+        let expected = vec![Token::new(Rule::html, 0, 8),
                             Token::new(Rule::path, 4, 5),
                             Token::new(Rule::identifier, 4, 5)];
         assert_eq!(&expected, parser.queue());
