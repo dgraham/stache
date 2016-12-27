@@ -63,7 +63,7 @@ static void append_value(VALUE buf, VALUE stack, VALUE path, bool escape) {
 }
 
 static void section(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VALUE)) {
-    VALUE value = context_fetch(stack, path);
+    VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_ARRAY:
             for (long i = 0; i < RARRAY_LEN(value); i++) {
@@ -89,7 +89,7 @@ static void section(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VAL
 }
 
 static void inverted(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VALUE)) {
-    VALUE value = context_fetch(stack, path);
+    VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_ARRAY:
             if (RARRAY_LEN(value) == 0) {
