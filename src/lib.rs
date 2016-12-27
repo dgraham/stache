@@ -37,6 +37,7 @@ pub enum Statement {
     Html(Path),
     Partial(String),
     Content(String),
+    Comment(String),
 }
 
 impl Statement {
@@ -61,13 +62,17 @@ impl_rdp! {
     grammar! {
         program     = { block ~ eoi }
         block       = @{ statement* }
-        statement   = { content | variable | html | section | inverted | partial }
-        content     = @{ (!open ~ any)+ }
+        statement   = { comment | content | variable | html | section | inverted | partial }
+        content     = { (!open ~ any)+ }
         variable    = !@{ open ~ path ~ close }
-        html        = !@{ (["{{{"] ~ path ~ ["}}}"]) | (["{{&"] ~ path ~ ["}}"]) }
-        section     = !@{ ["{{#"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
-        inverted    = !@{ ["{{^"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
-        comment     = _{ ["{{!"] ~ (!close ~ any)* ~ close }
+        html        = !@{ (["{{{"] ~ path ~ ["}}}"]) | (["{{&"] ~ path ~ close) }
+        section     = @{ sopen ~ block ~ sclose }
+        sopen       = !@{ ["{{#"] ~ path ~ close }
+        sclose      = !@{ ["{{/"] ~ path ~ close }
+        inverted    = @{ invopen ~ block ~ sclose }
+        invopen     = !@{ ["{{^"] ~ path ~ close }
+        comment     = { ["{{!"] ~ ctext ~ close }
+        ctext       = { (!close ~ any)* }
         partial     = !@{ ["{{>"] ~ partial_id ~ close }
         partial_id  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["/"])+ }
         open        = _{ ["{{"] }
@@ -106,6 +111,9 @@ impl_rdp! {
         }
 
         _statement(&self) -> Result<Statement, ParseError> {
+            (_: comment, &text: ctext) => {
+                Ok(Statement::Comment(String::from(text)))
+            },
             (&text: content) => {
                 Ok(Statement::Content(String::from(text)))
             },
@@ -118,13 +126,13 @@ impl_rdp! {
             (_: partial, &name: partial_id) => {
                 Ok(Statement::Partial(String::from(name)))
             },
-            (_: section, open: _path(), block: _block(), close: _path()) => {
+            (_: section, _: sopen, open: _path(), block: _block(), _: sclose, close: _path()) => {
                 if open != close {
                     return Err(ParseError::InvalidSection(open, close));
                 }
                 Ok(Statement::Section(open, block?))
             },
-            (_: inverted, open: _path(), block: _block(), close: _path()) => {
+            (_: inverted, _: invopen, open: _path(), block: _block(), _: sclose, close: _path()) => {
                 if open != close {
                     return Err(ParseError::InvalidSection(open, close));
                 }
@@ -203,7 +211,9 @@ mod tests {
         let mut parser = Rdp::new(StringInput::new("{{! a b c}}"));
         assert!(parser.comment());
         assert!(parser.end());
-        assert!(parser.queue().is_empty());
+
+        let expected = vec![Token::new(Rule::comment, 0, 11), Token::new(Rule::ctext, 3, 9)];
+        assert_eq!(&expected, parser.queue());
     }
 
     #[test]
@@ -213,8 +223,11 @@ mod tests {
         assert!(parser.end());
 
         let expected = vec![Token::new(Rule::inverted, 0, 14),
+                            Token::new(Rule::invopen, 0, 7),
                             Token::new(Rule::path, 4, 5),
                             Token::new(Rule::identifier, 4, 5),
+                            Token::new(Rule::block, 7, 7),
+                            Token::new(Rule::sclose, 7, 14),
                             Token::new(Rule::path, 11, 12),
                             Token::new(Rule::identifier, 11, 12)];
         assert_eq!(&expected, parser.queue());
@@ -227,8 +240,11 @@ mod tests {
         assert!(parser.end());
 
         let expected = vec![Token::new(Rule::section, 0, 14),
+                            Token::new(Rule::sopen, 0, 7),
                             Token::new(Rule::path, 4, 5),
                             Token::new(Rule::identifier, 4, 5),
+                            Token::new(Rule::block, 7, 7),
+                            Token::new(Rule::sclose, 7, 14),
                             Token::new(Rule::path, 11, 12),
                             Token::new(Rule::identifier, 11, 12)];
         assert_eq!(&expected, parser.queue());
@@ -317,11 +333,12 @@ mod tests {
                             Token::new(Rule::content, 35, 69),
                             Token::new(Rule::statement, 69, 156),
                             Token::new(Rule::section, 69, 156),
+                            Token::new(Rule::sopen, 69, 81),
                             Token::new(Rule::path, 73, 79),
                             Token::new(Rule::identifier, 73, 79),
-                            Token::new(Rule::block, 102, 144),
-                            Token::new(Rule::statement, 102, 106),
-                            Token::new(Rule::content, 102, 106),
+                            Token::new(Rule::block, 81, 144),
+                            Token::new(Rule::statement, 81, 106),
+                            Token::new(Rule::content, 81, 106),
                             Token::new(Rule::statement, 106, 122),
                             Token::new(Rule::variable, 106, 122),
                             Token::new(Rule::path, 109, 119),
@@ -329,17 +346,25 @@ mod tests {
                             Token::new(Rule::identifier, 114, 119),
                             Token::new(Rule::statement, 122, 144),
                             Token::new(Rule::content, 122, 144),
+                            Token::new(Rule::sclose, 144, 156),
                             Token::new(Rule::path, 148, 154),
                             Token::new(Rule::identifier, 148, 154),
                             Token::new(Rule::statement, 156, 173),
                             Token::new(Rule::content, 156, 173),
                             Token::new(Rule::statement, 173, 283),
                             Token::new(Rule::inverted, 173, 283),
+                            Token::new(Rule::invopen, 173, 185),
                             Token::new(Rule::path, 177, 183),
                             Token::new(Rule::identifier, 177, 183),
-                            Token::new(Rule::block, 245, 271),
-                            Token::new(Rule::statement, 245, 271),
-                            Token::new(Rule::content, 245, 271),
+                            Token::new(Rule::block, 185, 271),
+                            Token::new(Rule::statement, 185, 206),
+                            Token::new(Rule::content, 185, 206),
+                            Token::new(Rule::statement, 206, 224),
+                            Token::new(Rule::comment, 206, 224),
+                            Token::new(Rule::ctext, 209, 222),
+                            Token::new(Rule::statement, 224, 271),
+                            Token::new(Rule::content, 224, 271),
+                            Token::new(Rule::sclose, 271, 283),
                             Token::new(Rule::path, 275, 281),
                             Token::new(Rule::identifier, 275, 281),
                             Token::new(Rule::statement, 283, 314),
@@ -390,7 +415,7 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let list = vec![Statement::Content(String::from("<li>")),
+        let list = vec![Statement::Content(String::from("\n                    <li>")),
                         Statement::Variable(Path::new(vec![String::from("name"),
                                                            String::from("first")])),
                         Statement::Content(String::from("</li>\n                "))];
@@ -398,7 +423,11 @@ mod tests {
         let section = Statement::Section(Path::new(vec![String::from("robots")]),
                                          Block { statements: list });
 
-        let invblock = vec![Statement::Content(String::from("No robots\n                "))];
+
+        let invblock = vec![Statement::Content(String::from("\n                    ")),
+                            Statement::Comment(String::from(" else clause ")),
+                            Statement::Content(String::from("\n                    No robots\n                \
+                                                             "))];
         let inverted = Statement::Inverted(Path::new(vec![String::from("robots")]),
                                            Block { statements: invblock });
 
