@@ -77,7 +77,8 @@ impl_rdp! {
         partial_id  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["/"])+ }
         open        = _{ ["{{"] }
         close       = _{ ["}}"] }
-        path        = @{ identifier ~ (["."] ~ identifier)* }
+        path        = @{ dot | (identifier ~ (["."] ~ identifier)*) }
+        dot         = { ["."] }
         identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"])+ }
         whitespace  = _{ [" "] | ["\t"] | ["\r"] | ["\n"]}
     }
@@ -141,6 +142,9 @@ impl_rdp! {
         }
 
         _path(&self) -> Path {
+            (_: path, _: dot) => {
+                Path::new(vec![String::from(".")])
+            },
             (_: path, list: _identifier()) => {
                 Path::new(list)
             }
@@ -259,6 +263,18 @@ mod tests {
         let expected = vec![Token::new(Rule::variable, 0, 7),
                             Token::new(Rule::path, 3, 4),
                             Token::new(Rule::identifier, 3, 4)];
+        assert_eq!(&expected, parser.queue());
+    }
+
+    #[test]
+    fn dot() {
+        let mut parser = Rdp::new(StringInput::new("{{ . }}"));
+        assert!(parser.variable());
+        assert!(parser.end());
+
+        let expected = vec![Token::new(Rule::variable, 0, 7),
+                            Token::new(Rule::path, 3, 4),
+                            Token::new(Rule::dot, 3, 4)];
         assert_eq!(&expected, parser.queue());
     }
 

@@ -1,6 +1,9 @@
 pub const RUNTIME: &'static str = r#"
 #include "ruby.h"
 #include <stdbool.h>
+#include <string.h>
+
+static const char *DOT = ".";
 
 static VALUE escape_html(VALUE value) {
     VALUE cgi = rb_const_get(rb_cObject, rb_intern("CGI"));
@@ -8,6 +11,10 @@ static VALUE escape_html(VALUE value) {
 }
 
 static VALUE fetch(VALUE context, VALUE key) {
+    if (strncmp(StringValuePtr(key), DOT, 2) == 0) {
+        return context;
+    }
+
     switch (rb_type(context)) {
         case T_HASH:
             return rb_hash_aref(context, key);
