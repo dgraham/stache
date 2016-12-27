@@ -72,6 +72,7 @@ static void section(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VAL
                 rb_ary_pop(stack);
             }
             break;
+        case T_HASH:
         case T_OBJECT:
         case T_STRUCT:
             rb_ary_push(stack, value);
