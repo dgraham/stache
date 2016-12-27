@@ -60,15 +60,15 @@ impl Statement {
 impl_rdp! {
     grammar! {
         program     = { block ~ eoi }
-        block       = { statement* }
+        block       = @{ statement* }
         statement   = { content | variable | html | section | inverted | partial }
         content     = @{ (!open ~ any)+ }
-        variable    = { open ~ path ~ close }
-        html        = { (["{{{"] ~ path ~ ["}}}"]) | (["{{&"] ~ path ~ ["}}"]) }
-        section     = { ["{{#"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
-        inverted    = { ["{{^"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
+        variable    = !@{ open ~ path ~ close }
+        html        = !@{ (["{{{"] ~ path ~ ["}}}"]) | (["{{&"] ~ path ~ ["}}"]) }
+        section     = !@{ ["{{#"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
+        inverted    = !@{ ["{{^"] ~ path ~ close ~ block ~ ["{{/"] ~ path ~ close }
         comment     = _{ ["{{!"] ~ (!close ~ any)* ~ close }
-        partial     = { ["{{>"] ~ partial_id ~ close }
+        partial     = !@{ ["{{>"] ~ partial_id ~ close }
         partial_id  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["/"])+ }
         open        = _{ ["{{"] }
         close       = _{ ["}}"] }
@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn html_ampersand() {
+    fn ampersand() {
         let mut parser = Rdp::new(StringInput::new("{{& a }}"));
         assert!(parser.html());
         assert!(parser.end());
@@ -267,6 +267,23 @@ mod tests {
         let expected = vec![Token::new(Rule::html, 0, 8),
                             Token::new(Rule::path, 4, 5),
                             Token::new(Rule::identifier, 4, 5)];
+        assert_eq!(&expected, parser.queue());
+    }
+
+    #[test]
+    fn whitespace() {
+        let mut parser = Rdp::new(StringInput::new("{{ a }} b"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let expected = vec![Token::new(Rule::program, 0, 9),
+                            Token::new(Rule::block, 0, 9),
+                            Token::new(Rule::statement, 0, 7),
+                            Token::new(Rule::variable, 0, 7),
+                            Token::new(Rule::path, 3, 4),
+                            Token::new(Rule::identifier, 3, 4),
+                            Token::new(Rule::statement, 7, 9),
+                            Token::new(Rule::content, 7, 9)];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -290,14 +307,14 @@ mod tests {
         assert!(parser.end());
 
         let expected = vec![Token::new(Rule::program, 0, 380),
-                            Token::new(Rule::block, 0, 371),
+                            Token::new(Rule::block, 0, 380),
                             Token::new(Rule::statement, 0, 13),
                             Token::new(Rule::content, 0, 13),
                             Token::new(Rule::statement, 13, 35),
                             Token::new(Rule::partial, 13, 35),
                             Token::new(Rule::partial_id, 17, 32),
-                            Token::new(Rule::statement, 48, 69),
-                            Token::new(Rule::content, 48, 69),
+                            Token::new(Rule::statement, 35, 69),
+                            Token::new(Rule::content, 35, 69),
                             Token::new(Rule::statement, 69, 156),
                             Token::new(Rule::section, 69, 156),
                             Token::new(Rule::path, 73, 79),
@@ -314,6 +331,8 @@ mod tests {
                             Token::new(Rule::content, 122, 144),
                             Token::new(Rule::path, 148, 154),
                             Token::new(Rule::identifier, 148, 154),
+                            Token::new(Rule::statement, 156, 173),
+                            Token::new(Rule::content, 156, 173),
                             Token::new(Rule::statement, 173, 283),
                             Token::new(Rule::inverted, 173, 283),
                             Token::new(Rule::path, 177, 183),
@@ -323,16 +342,20 @@ mod tests {
                             Token::new(Rule::content, 245, 271),
                             Token::new(Rule::path, 275, 281),
                             Token::new(Rule::identifier, 275, 281),
-                            Token::new(Rule::statement, 296, 314),
-                            Token::new(Rule::content, 296, 314),
+                            Token::new(Rule::statement, 283, 314),
+                            Token::new(Rule::content, 283, 314),
                             Token::new(Rule::statement, 314, 336),
                             Token::new(Rule::partial, 314, 336),
                             Token::new(Rule::partial_id, 318, 333),
+                            Token::new(Rule::statement, 336, 349),
+                            Token::new(Rule::content, 336, 349),
                             Token::new(Rule::statement, 349, 371),
                             Token::new(Rule::html, 349, 371),
                             Token::new(Rule::path, 353, 367),
                             Token::new(Rule::identifier, 353, 362),
-                            Token::new(Rule::identifier, 363, 367)];
+                            Token::new(Rule::identifier, 363, 367),
+                            Token::new(Rule::statement, 371, 380),
+                            Token::new(Rule::content, 371, 380)];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -379,15 +402,18 @@ mod tests {
         let inverted = Statement::Inverted(Path::new(vec![String::from("robots")]),
                                            Block { statements: invblock });
 
-        let program = vec![Statement::Content(String::from("\n            ")),
-                           Statement::Partial(String::from("includes/header")),
-                           Statement::Content(String::from("<ul>\n                ")),
-                           section,
-                           inverted,
-                           Statement::Content(String::from("</ul>\n            ")),
-                           Statement::Partial(String::from("includes/footer")),
-                           Statement::Html(Path::new(vec![String::from("unescaped"),
-                                                          String::from("html")]))];
+        let program =
+            vec![Statement::Content(String::from("\n            ")),
+                 Statement::Partial(String::from("includes/header")),
+                 Statement::Content(String::from("\n            <ul>\n                ")),
+                 section,
+                 Statement::Content(String::from("\n                ")),
+                 inverted,
+                 Statement::Content(String::from("\n            </ul>\n            ")),
+                 Statement::Partial(String::from("includes/footer")),
+                 Statement::Content(String::from("\n            ")),
+                 Statement::Html(Path::new(vec![String::from("unescaped"), String::from("html")])),
+                 Statement::Content(String::from("\n        "))];
         let expected = Statement::Program(Block { statements: program });
 
         match parser.tree() {
