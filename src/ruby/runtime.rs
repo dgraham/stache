@@ -17,7 +17,11 @@ static VALUE fetch(VALUE context, VALUE key) {
 
     switch (rb_type(context)) {
         case T_HASH:
-            return rb_hash_aref(context, key);
+            if (rb_funcall(context, rb_intern("key?"), 1, key) == Qtrue) {
+                return rb_hash_aref(context, key);
+            } else {
+                return Qundef;
+            }
         case T_STRUCT:
             // TODO Check rb_struct_members to avoid name error.
             return rb_struct_aref(context, key);
