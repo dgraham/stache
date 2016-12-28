@@ -11,7 +11,7 @@ static VALUE escape_html(VALUE value) {
 }
 
 static VALUE fetch(VALUE context, VALUE key) {
-    if (strncmp(StringValuePtr(key), DOT, 2) == 0) {
+    if (RSTRING_LEN(key) == 1 && strncmp(StringValuePtr(key), DOT, 1) == 0) {
         return context;
     }
 
