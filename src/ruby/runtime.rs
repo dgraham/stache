@@ -25,9 +25,14 @@ static VALUE fetch(VALUE context, VALUE key) {
         case T_STRUCT:
             // TODO Check rb_struct_members to avoid name error.
             return rb_struct_aref(context, key);
-        case T_OBJECT:
-            // TODO Prevent undefined method error and check arity.
-            return rb_funcall(context, rb_to_id(key), 0);
+        case T_OBJECT: {
+            ID method = rb_to_id(key);
+            if (rb_respond_to(context, method) && rb_obj_method_arity(context, method) == 0) {
+                return rb_funcall(context, method, 0);
+            } else {
+                return Qundef;
+            }
+        }
         default:
             return Qundef;
     }
