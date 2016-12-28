@@ -17,7 +17,7 @@ static VALUE fetch(VALUE context, VALUE key) {
 
     switch (rb_type(context)) {
         case T_HASH:
-            if (rb_funcall(context, rb_intern("key?"), 1, key) == Qtrue) {
+            if (RTEST(rb_funcall(context, id_key_p, 1, key))) {
                 return rb_hash_aref(context, key);
             } else {
                 return Qundef;
