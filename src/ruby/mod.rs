@@ -68,6 +68,15 @@ impl Compile for Program {
             }
         }
 
+        // Emit cached constants.
+        writeln!(buf,
+                 r#"rb_require("cgi");
+                    cCGI = rb_const_get(rb_cObject, rb_intern("CGI"));
+                    id_escape_html = rb_intern("escapeHTML");
+                    id_key_p = rb_intern("key?");
+                    id_to_s = rb_intern("to_s");
+                 "#)?;
+
         writeln!(buf, "}}")
     }
 }

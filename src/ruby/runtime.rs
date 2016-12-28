@@ -5,10 +5,11 @@ pub const RUNTIME: &'static str = r#"
 
 static const char *DOT = ".";
 
-static VALUE escape_html(VALUE value) {
-    VALUE cgi = rb_const_get(rb_cObject, rb_intern("CGI"));
-    return rb_funcall(cgi, rb_intern("escapeHTML"), 1, value);
-}
+static ID id_escape_html;
+static ID id_key_p;
+static ID id_to_s;
+
+static VALUE cCGI;
 
 static VALUE fetch(VALUE context, VALUE key) {
     if (RSTRING_LEN(key) == 1 && strncmp(StringValuePtr(key), DOT, 1) == 0) {
@@ -72,10 +73,10 @@ static void append_value(VALUE buf, VALUE stack, VALUE path, bool escape) {
         case T_STRING:
             break;
         default:
-            value = rb_funcall(value, rb_intern("to_s"), 0);
+            value = rb_funcall(value, id_to_s, 0);
             break;
     }
-    rb_str_buf_append(buf, escape ? escape_html(value) : value);
+    rb_str_buf_append(buf, escape ? rb_funcall(cCGI, id_escape_html, 1, value) : value);
 }
 
 static void section(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VALUE)) {
