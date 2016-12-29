@@ -14,6 +14,7 @@ $ stache -d app/templates/ -o templates.c --emit=ruby && clang-format -i -style=
 ## Development
 
 ```
+$ git submodule update --init
 $ cargo test
 $ cargo build
 ```
