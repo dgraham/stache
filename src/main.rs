@@ -9,8 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use getopts::Options;
-use pest::{Parser, StringInput};
-use stache::{Compile, Rdp, Statement, Template};
+use stache::{Compile, Statement, Template};
 use stache::ruby;
 
 enum Target {
@@ -125,19 +124,12 @@ fn parse(path: &Path) -> io::Result<Statement> {
     let mut template = String::new();
     file.read_to_string(&mut template)?;
 
-    let mut parser = Rdp::new(StringInput::new(&template));
-    if parser.program() && parser.end() {
-        match parser.tree() {
-            Ok(tree) => Ok(tree),
-            Err(e) => {
-                let message = format!("Error parsing {:?}\n{}", path, e);
-                Err(Error::new(ErrorKind::Other, message))
-            }
+    match Statement::parse(&template) {
+        Ok(tree) => Ok(tree),
+        Err(e) => {
+            let message = format!("Error parsing {:?}\n{}", path, e);
+            Err(Error::new(ErrorKind::Other, message))
         }
-    } else {
-        let (_, position) = parser.expected();
-        let message = format!("Error parsing {:?} at position {}", path, position);
-        Err(Error::new(ErrorKind::Other, message))
     }
 }
 

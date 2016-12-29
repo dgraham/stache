@@ -49,6 +49,19 @@ pub enum Statement {
 }
 
 impl Statement {
+    /// Parses the Mustache text into a Statement AST.
+    pub fn parse(template: &str) -> Result<Statement, ParseError> {
+        let mut parser = Rdp::new(StringInput::new(&template));
+        if parser.program() && parser.end() {
+            parser.tree()
+        } else {
+            let (_, position) = parser.expected();
+            Err(ParseError::UnexpectedToken(position))
+        }
+    }
+
+    /// Visits each node in the tree collecting the names of partials
+    /// referenced by the template.
     pub fn partials<'a>(&'a self) -> Vec<&'a String> {
         match *self {
             Statement::Program(ref block) => {
