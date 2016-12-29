@@ -3,7 +3,8 @@ extern crate pest;
 extern crate regex;
 
 use pest::prelude::*;
-use std::io::{self, Write};
+use std::fs::File;
+use std::io::{self, BufWriter, Write};
 
 pub use error::ParseError;
 pub use name::Name;
@@ -21,6 +22,13 @@ mod template;
 pub trait Compile {
     /// Writes the final translated source code to an output buffer.
     fn emit(&self, buf: &mut Write) -> io::Result<()>;
+
+    /// Saves the translated source code to a file.
+    fn write<P: AsRef<std::path::Path>>(&self, output: P) -> io::Result<()> {
+        File::create(output)
+            .map(|file| BufWriter::new(file))
+            .and_then(|mut buf| self.emit(&mut buf))
+    }
 }
 
 #[derive(Debug, PartialEq)]

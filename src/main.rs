@@ -4,7 +4,7 @@ extern crate stache;
 
 use std::env;
 use std::fs::{self, File};
-use std::io::{self, BufWriter, Error, ErrorKind, Read};
+use std::io::{self, Error, ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
@@ -90,7 +90,7 @@ fn main() {
         Target::Ruby => {
             ruby::link(&templates)
                 .map_err(|e| io::Error::new(ErrorKind::Other, e))
-                .and_then(|program| write(&program, &output))
+                .and_then(|program| program.write(&output))
         }
     };
 
@@ -101,12 +101,6 @@ fn main() {
             exit(1);
         }
     }
-}
-
-fn write<T: Compile>(source: &T, output: &Path) -> io::Result<()> {
-    File::create(output)
-        .map(|file| BufWriter::new(file))
-        .and_then(|mut buf| source.emit(&mut buf))
 }
 
 fn parse_dir(base: &PathBuf, dir: &PathBuf) -> io::Result<Vec<Template>> {
