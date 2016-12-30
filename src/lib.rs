@@ -186,7 +186,7 @@ impl_rdp! {
 #[cfg(test)]
 mod tests {
     use pest::prelude::*;
-    use super::{Block, Path, ParseError, Rdp, Rule, Statement};
+    use super::*;
 
     #[test]
     fn identifier() {

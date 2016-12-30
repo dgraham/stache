@@ -1,4 +1,3 @@
-extern crate pest;
 extern crate stache;
 extern crate tempdir;
 extern crate yaml_rust;

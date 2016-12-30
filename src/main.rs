@@ -1,5 +1,4 @@
 extern crate getopts;
-extern crate pest;
 extern crate stache;
 
 use std::env;

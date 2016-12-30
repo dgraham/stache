@@ -314,9 +314,8 @@ fn path_ary(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use pest::prelude::*;
     use super::{link, transform, Scope};
-    use super::super::{Name, ParseError, Rdp, Statement, Template};
+    use super::super::{Name, ParseError, Statement, Template};
     use std::path::{Path, PathBuf};
 
     #[test]
@@ -360,7 +359,7 @@ mod tests {
 
     #[test]
     fn transforms_tree_into_functions() {
-        let mut parser = Rdp::new(StringInput::new("
+        let text = "
             {{> includes/header }}
             <ul>
                 {{# robots}}
@@ -373,12 +372,9 @@ mod tests {
             </ul>
             {{> includes/footer }}
             {{{ unescaped.html }}}
-        "));
+        ";
 
-        assert!(parser.program());
-        assert!(parser.end());
-
-        match parser.tree() {
+        match Statement::parse(text) {
             Ok(tree) => {
                 let mut scope = Scope::new(Name::new("machines/robot"));
                 transform(&mut scope, &tree);
