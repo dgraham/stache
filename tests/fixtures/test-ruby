@@ -1,0 +1,43 @@
+#!/usr/bin/env ruby
+
+require 'yaml'
+
+# Temporary build directory.
+dir = ARGV[0]
+
+# Compile extension into shared object.
+Dir.chdir(dir) do
+  `ruby -r mkmf -e 'create_makefile("stache")'`
+  `make`
+end
+
+# Load compiled extension.
+require "#{dir}/stache"
+
+templates = Stache::Templates.new
+
+base = "ext/spec/specs"
+files = ["comments", "interpolation", "inverted", "sections"]
+
+# Load specification test data.
+specs = files.map do |name|
+  contents = File.read('%s/%s.yml' % [base, name])
+  [name, YAML.load(contents)]
+end
+
+# Report test failures to cargo.
+success = true
+specs.each do |name, spec|
+  spec['tests'].each_with_index do |test, index|
+    result = templates.send("#{name}#{index}", test['data'])
+    if result != test['expected']
+      $stderr.puts "\n#{name} - #{test['name']}"
+      $stderr.puts "expect: #{test['expected'].inspect}"
+      $stderr.puts "actual: #{result.inspect}"
+      success = false
+    end
+  end
+end
+
+# Pass or fail the cargo test suite.
+exit(success ? 0 : 1)

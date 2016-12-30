@@ -7,8 +7,8 @@ A [Mustache] template compiler.
 ## Usage
 
 ```
-$ stache -d app/templates/ -o templates.c --emit=ruby
-$ stache -d app/templates/ -o templates.c --emit=ruby && clang-format -i -style=webkit templates.c
+$ stache -d app/templates/ -o stache.c --emit=ruby
+$ stache -d app/templates/ -o stache.c --emit=ruby && clang-format -i -style=webkit stache.c
 ```
 
 ## Development
@@ -17,6 +17,9 @@ $ stache -d app/templates/ -o templates.c --emit=ruby && clang-format -i -style=
 $ git submodule update --init
 $ cargo test
 $ cargo build
+
+# Test Mustache specification compliance (ignored until whitespace tests pass)
+$ cargo test -- --ignored
 ```
 
 ## License
