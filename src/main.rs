@@ -2,13 +2,12 @@ extern crate getopts;
 extern crate stache;
 
 use std::env;
-use std::fs::{self, File};
-use std::io::{self, Error, ErrorKind, Read};
-use std::path::{Path, PathBuf};
+use std::io::{self, ErrorKind};
+use std::path::PathBuf;
 use std::process::exit;
 
 use getopts::Options;
-use stache::{Compile, Statement, Template};
+use stache::{Compile, Template};
 use stache::ruby;
 
 enum Target {
@@ -76,7 +75,7 @@ fn main() {
         }
     };
 
-    let templates = match parse_dir(&base, &base) {
+    let templates = match Template::parse(&base) {
         Ok(templates) => templates,
         Err(e) => {
             println!("{}", e);
@@ -97,37 +96,6 @@ fn main() {
         Err(e) => {
             println!("{}", e);
             exit(1);
-        }
-    }
-}
-
-fn parse_dir(base: &PathBuf, dir: &PathBuf) -> io::Result<Vec<Template>> {
-    let mut templates = Vec::new();
-    if dir.is_dir() {
-        for entry in fs::read_dir(dir)? {
-            let path = entry?.path();
-            if path.is_dir() {
-                templates.append(&mut parse_dir(base, &path)?);
-            } else {
-                let tree = parse(&path)?;
-                let template = Template::new(&base, path, tree);
-                templates.push(template);
-            }
-        }
-    }
-    Ok(templates)
-}
-
-fn parse(path: &Path) -> io::Result<Statement> {
-    let mut file = File::open(path)?;
-    let mut template = String::new();
-    file.read_to_string(&mut template)?;
-
-    match Statement::parse(&template) {
-        Ok(tree) => Ok(tree),
-        Err(e) => {
-            let message = format!("Error parsing {:?}\n{}", path, e);
-            Err(Error::new(ErrorKind::Other, message))
         }
     }
 }
