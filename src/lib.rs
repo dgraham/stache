@@ -53,7 +53,7 @@ pub enum Statement {
 impl Statement {
     /// Parses the Mustache text into a Statement AST.
     pub fn parse(template: &str) -> Result<Statement, ParseError> {
-        let mut parser = Rdp::new(StringInput::new(&template));
+        let mut parser = Rdp::new(StringInput::new(template));
         if parser.program() && parser.end() {
             parser.tree()
         } else {

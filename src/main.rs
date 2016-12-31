@@ -134,5 +134,5 @@ fn parse(path: &Path) -> io::Result<Statement> {
 
 fn usage(opts: &Options) {
     let brief = "Mustache template compiler\n\nUsage:\n    stache [options]";
-    println!("{}", opts.usage(&brief));
+    println!("{}", opts.usage(brief));
 }
