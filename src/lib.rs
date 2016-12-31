@@ -24,7 +24,9 @@ pub trait Compile {
     fn emit(&self, buf: &mut Write) -> io::Result<()>;
 
     /// Saves the translated source code to a file.
-    fn write<P: AsRef<std::path::Path>>(&self, output: P) -> io::Result<()> {
+    fn write<P>(&self, output: P) -> io::Result<()>
+        where P: AsRef<std::path::Path>
+    {
         File::create(output)
             .map(|file| BufWriter::new(file))
             .and_then(|mut buf| self.emit(&mut buf))
