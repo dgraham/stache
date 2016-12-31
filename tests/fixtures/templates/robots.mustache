@@ -1,0 +1,11 @@
+{{> includes/header }}
+<ul>
+  {{#robots}}
+    {{> robot}}
+  {{/robots}}
+  {{^robots}}
+    {{! else clause }}
+    No robots
+  {{/robots}}
+</ul>
+{{> includes/footer }}
