@@ -287,14 +287,17 @@ fn validate(templates: &Vec<Template>) -> Result<(), ParseError> {
 /// Replaces string literal characters considered invalid inside a cstr with
 /// their escaped counterparts.
 fn clean(text: &str) -> String {
+    let re = Regex::new(r"\\").unwrap();
+    let text = re.replace_all(&text, "\\\\");
+
     let re = Regex::new(r"\r").unwrap();
-    let value = re.replace_all(text, "\\r");
+    let text = re.replace_all(&text, "\\r");
 
     let re = Regex::new(r"\n").unwrap();
-    let value = re.replace_all(&value, "\\n");
+    let text = re.replace_all(&text, "\\n");
 
     let re = Regex::new(r#"["]"#).unwrap();
-    re.replace_all(&value, "\\\"")
+    re.replace_all(&text, "\\\"")
 }
 
 /// Transforms a Mustache variable key path into the source code to build a

@@ -98,4 +98,11 @@ describe Stache do
       refute_match /friendly/, value
     end
   end
+
+  describe 'escaping special characters' do
+    it 'escapes characters in template text' do
+      value = subject.escape({})
+      assert_equal "<kbd>\" \\n \"</kbd>\n", value
+    end
+  end
 end
