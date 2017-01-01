@@ -8,7 +8,7 @@ dir = ARGV[0]
 
 # Compile extension into shared object.
 Dir.chdir(dir) do
-  `ruby -r mkmf -e 'create_makefile("stache")'`
+  `ruby -r mkmf -e '$CFLAGS = "-std=c99"; create_makefile("stache")'`
   `make`
 end
 
