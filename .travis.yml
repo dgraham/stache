@@ -7,3 +7,4 @@ matrix:
   allow_failures:
     - rust: nightly
 cache: cargo
+dist: trusty
