@@ -121,4 +121,18 @@ static void inverted(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VA
             break;
     }
 }
+
+static VALUE render(VALUE self, VALUE name, VALUE context);
+
+void Init_stache() {
+    VALUE Stache = rb_define_module("Stache");
+    VALUE Templates = rb_define_class_under(Stache, "Templates", rb_cObject);
+    rb_define_singleton_method(Templates, "render", render, 2);
+
+    rb_require("cgi");
+    cCGI = rb_const_get(rb_cObject, rb_intern("CGI"));
+    id_escape_html = rb_intern("escapeHTML");
+    id_key_p = rb_intern("key?");
+    id_to_s = rb_intern("to_s");
+}
 "#;

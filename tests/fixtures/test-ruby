@@ -14,8 +14,6 @@ end
 # Load compiled extension.
 require "#{dir}/stache"
 
-templates = Stache::Templates.new
-
 base = "ext/spec/specs"
 files = ["comments", "interpolation", "inverted", "sections"]
 
@@ -29,7 +27,7 @@ end
 success = true
 specs.each do |name, spec|
   spec['tests'].each_with_index do |test, index|
-    result = templates.send("#{name}#{index}", test['data'])
+    result = Stache::Templates.render("#{name}#{index}", test['data'])
     if result != test['expected']
       puts "\n#{name} - #{test['name']}"
       puts "expect: #{test['expected'].inspect}"

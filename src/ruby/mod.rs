@@ -52,32 +52,29 @@ impl Compile for Program {
             fun.emit(buf)?
         }
 
-        // Emit main function.
-        write!(buf,
-               r#"void Init_stache() {{
-                      VALUE Stache = rb_define_module("Stache");
-                      VALUE Templates = rb_define_class_under(Stache, "Templates", rb_cObject);
-                 "#)?;
+        // Emit public render function.
+        writeln!(buf,
+                 r#"static VALUE render(VALUE self, VALUE name, VALUE context) {{
+                        const char *ptr = StringValuePtr(name);
+                        const long length = RSTRING_LEN(name);
+                        VALUE buf = rb_str_buf_new(0);
+                        VALUE stack = rb_ary_new_from_args(1, context);
+                   "#)?;
 
         for fun in &self.global.functions {
             if let Some(ref export) = fun.export {
                 writeln!(buf,
-                         "rb_define_method(Templates, \"{}\", {}, 1);",
-                         export,
-                         fun.name)?;
+                         "if (length == {len} && strncmp(ptr, \"{path}\", {len}) == 0) {{
+                              {fun}(buf, stack);
+                              return buf;
+                          }}",
+                         len = export.len(),
+                         path = export,
+                         fun = fun.name)?;
             }
         }
 
-        // Emit cached constants.
-        writeln!(buf,
-                 r#"rb_require("cgi");
-                    cCGI = rb_const_get(rb_cObject, rb_intern("CGI"));
-                    id_escape_html = rb_intern("escapeHTML");
-                    id_key_p = rb_intern("key?");
-                    id_to_s = rb_intern("to_s");
-                 "#)?;
-
-        writeln!(buf, "}}")
+        writeln!(buf, "rb_raise(rb_eArgError, \"Template not found\"); }}")
     }
 }
 
@@ -122,6 +119,12 @@ impl Scope {
     fn register(&mut self, fun: Function) {
         self.functions.push(fun);
     }
+
+    /// Returns the template path used to generate function names in this
+    /// scope (e.g. "includes/header").
+    fn base_name(&self) -> String {
+        self.name.base.clone()
+    }
 }
 
 #[derive(Debug)]
@@ -160,29 +163,14 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
                 .filter_map(|stmt| transform(scope.next(), stmt))
                 .collect();
 
-            let internal = Function {
+            let render = Function {
                 name: format!("render_{}", id),
                 decl: format!("static void render_{}(VALUE buf, VALUE stack)", id),
                 body: children,
-                export: None,
+                export: Some(scope.base_name()),
             };
 
-            // Build public template function.
-            let body = format!("VALUE buf = rb_str_buf_new(0);
-                                VALUE stack = rb_ary_new_from_args(1, context);
-                                render_{}(buf, stack);
-                                return buf;",
-                               id);
-            let external = Function {
-                name: format!("{}_template", id),
-                decl: format!("static VALUE {}_template(VALUE self, VALUE context)", id),
-                body: vec![body],
-                export: Some(id),
-            };
-
-            scope.register(internal);
-            scope.register(external);
-
+            scope.register(render);
             None
         }
         Statement::Section(ref path, ref block) => {
@@ -386,14 +374,13 @@ mod tests {
                 let names: Vec<_> = scope.functions.iter().map(|fun| &fun.name).collect();
                 assert_eq!(vec!["section_machines_robot7",
                                 "section_machines_robot12",
-                                "render_machines_robot",
-                                "machines_robot_template"],
+                                "render_machines_robot"],
                            names);
 
                 // Single exported function name.
                 let exports: Vec<_> =
                     scope.functions.iter().filter_map(|fun| fun.export.as_ref()).collect();
-                assert_eq!(vec!["machines_robot"], exports);
+                assert_eq!(vec!["machines/robot"], exports);
             }
             Err(e) => panic!("Failed to parse tree: {}", e),
         }
