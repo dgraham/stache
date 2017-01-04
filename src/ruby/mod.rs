@@ -53,28 +53,20 @@ impl Compile for Program {
         }
 
         // Emit public render function.
+        let renders: Vec<_> = self.global.functions.iter().filter_map(|f| f.invoke_if()).collect();
         writeln!(buf,
                  r#"static VALUE render(VALUE self, VALUE name, VALUE context) {{
                         const char *ptr = StringValuePtr(name);
                         const long length = RSTRING_LEN(name);
                         VALUE buf = rb_str_buf_new(0);
                         VALUE stack = rb_ary_new_from_args(1, context);
-                   "#)?;
-
-        for fun in &self.global.functions {
-            if let Some(ref export) = fun.export {
-                writeln!(buf,
-                         "if (length == {len} && strncmp(ptr, \"{path}\", {len}) == 0) {{
-                              {fun}(buf, stack);
-                              return buf;
-                          }}",
-                         len = export.len(),
-                         path = export,
-                         fun = fun.name)?;
-            }
-        }
-
-        writeln!(buf, "rb_raise(rb_eArgError, \"Template not found\"); }}")
+                        {}
+                        else {{
+                            rb_raise(rb_eArgError, "Template not found");
+                        }}
+                        return buf;
+                    }}"#,
+                 renders.join(" else "))
     }
 }
 
@@ -136,12 +128,29 @@ struct Function {
 }
 
 impl Function {
+    /// Writes the function definition to the buffer.
     fn emit(&self, buf: &mut Write) -> io::Result<()> {
         writeln!(buf, "{} {{", self.decl)?;
         for node in &self.body {
             writeln!(buf, "{}", node)?;
         }
         writeln!(buf, "}}\n")
+    }
+
+    /// Builds a conditional statement to call the function if the template
+    /// name matches the function's exported name, like "includes/header".
+    fn invoke_if(&self) -> Option<String> {
+        if self.export.is_none() {
+            return None;
+        }
+
+        let export = self.export.as_ref().unwrap();
+        Some(format!("if (length == {len} && strncmp(ptr, \"{path}\", {len}) == 0) {{
+                          {fun}(buf, stack);
+                      }}",
+                     len = export.len(),
+                     path = export,
+                     fun = self.name))
     }
 }
 
