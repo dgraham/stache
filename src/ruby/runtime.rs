@@ -28,9 +28,15 @@ static VALUE fetch(VALUE context, VALUE key) {
                     return Qundef;
                 }
             }
-        case T_STRUCT:
-            // TODO Check rb_struct_members to avoid name error.
-            return rb_struct_aref(context, key);
+        case T_STRUCT: {
+            VALUE sym = ID2SYM(rb_to_id(key));
+            VALUE members = rb_struct_members(context);
+            if (RTEST(rb_ary_includes(members, sym))) {
+                return rb_struct_aref(context, sym);
+            } else {
+                return Qundef;
+            }
+        }
         case T_OBJECT: {
             ID method = rb_to_id(key);
             if (rb_respond_to(context, method) && rb_obj_method_arity(context, method) == 0) {

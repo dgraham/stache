@@ -65,7 +65,6 @@ describe Stache do
     end
 
     it 'replaces with struct context' do
-      skip
       Context = Struct.new(:name)
       context = Context.new({ 'login' => 'hubot' })
       value = subject.render("robot",context)
