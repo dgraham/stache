@@ -31,7 +31,6 @@ class Robot
   end
 end
 
-
 describe Stache do
   subject { Stache::Templates }
 
@@ -60,7 +59,6 @@ describe Stache do
     end
 
     it 'replaces hash symbol keys' do
-      skip
       context = { name: { login: 'hubot' } }
       value = subject.render("robot", context)
       assert_match /<strong>hubot<\/strong>/, value

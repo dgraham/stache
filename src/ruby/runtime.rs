@@ -21,7 +21,12 @@ static VALUE fetch(VALUE context, VALUE key) {
             if (RTEST(rb_funcall(context, id_key_p, 1, key))) {
                 return rb_hash_aref(context, key);
             } else {
-                return Qundef;
+                VALUE sym = ID2SYM(rb_to_id(key));
+                if (RTEST(rb_funcall(context, id_key_p, 1, sym))) {
+                    return rb_hash_aref(context, sym);
+                } else {
+                    return Qundef;
+                }
             }
         case T_STRUCT:
             // TODO Check rb_struct_members to avoid name error.
