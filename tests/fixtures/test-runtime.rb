@@ -100,6 +100,20 @@ describe Stache do
     end
   end
 
+  describe 'template error handling' do
+    it 'raises for template not found' do
+      assert_raises(ArgumentError) do
+        subject.render("bogus", {})
+      end
+    end
+
+    it 'raises for nil template name' do
+      assert_raises(TypeError) do
+        subject.render(nil, {})
+      end
+    end
+  end
+
   describe 'escaping special characters' do
     it 'escapes characters in template text' do
       value = subject.render("escape", {})
