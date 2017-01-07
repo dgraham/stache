@@ -38,6 +38,12 @@ pub struct Block {
     statements: Vec<Statement>,
 }
 
+impl Block {
+    fn new(statements: Vec<Statement>) -> Self {
+        Block { statements: statements }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     Program(Block),
@@ -115,7 +121,7 @@ impl_rdp! {
 
         _block(&self) -> Result<Block, ParseError> {
             (_: block, list: _statements()) => {
-                Ok(Block { statements: list? })
+                Ok(Block::new(list?))
             }
         }
 
@@ -459,8 +465,7 @@ mod tests {
                                                            String::from("first")])),
                         Statement::Content(String::from("</li>\n                "))];
 
-        let section = Statement::Section(Path::new(vec![String::from("robots")]),
-                                         Block { statements: list });
+        let section = Statement::Section(Path::new(vec![String::from("robots")]), Block::new(list));
 
 
         let invblock = vec![Statement::Content(String::from("\n                    ")),
@@ -468,7 +473,7 @@ mod tests {
                             Statement::Content(String::from("\n                    No robots\n                \
                                                              "))];
         let inverted = Statement::Inverted(Path::new(vec![String::from("robots")]),
-                                           Block { statements: invblock });
+                                           Block::new(invblock));
 
         let program =
             vec![Statement::Content(String::from("\n            ")),
@@ -482,7 +487,7 @@ mod tests {
                  Statement::Content(String::from("\n            ")),
                  Statement::Html(Path::new(vec![String::from("unescaped"), String::from("html")])),
                  Statement::Content(String::from("\n        "))];
-        let expected = Statement::Program(Block { statements: program });
+        let expected = Statement::Program(Block::new(program));
 
         match parser.tree() {
             Ok(tree) => assert_eq!(expected, tree),
