@@ -1,3 +1,5 @@
+#![recursion_limit = "70"]
+
 #[macro_use]
 extern crate pest;
 extern crate regex;
@@ -108,7 +110,7 @@ impl_rdp! {
         close       = _{ ["}}"] }
         path        = @{ dot | (identifier ~ (["."] ~ identifier)*) }
         dot         = { ["."] }
-        identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["?"])+ }
+        identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["?"] | ["!"])+ }
         whitespace  = _{ [" "] | ["\t"] | ["\r"] | ["\n"]}
     }
 
@@ -208,14 +210,14 @@ mod tests {
 
     #[test]
     fn path() {
-        let mut parser = Rdp::new(StringInput::new("a.b.c"));
+        let mut parser = Rdp::new(StringInput::new("a.b.c!"));
         assert!(parser.path());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::path, 0, 5),
+        let expected = vec![Token::new(Rule::path, 0, 6),
                             Token::new(Rule::identifier, 0, 1),
                             Token::new(Rule::identifier, 2, 3),
-                            Token::new(Rule::identifier, 4, 5)];
+                            Token::new(Rule::identifier, 4, 6)];
         assert_eq!(&expected, parser.queue());
     }
 
