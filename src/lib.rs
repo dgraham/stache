@@ -108,7 +108,7 @@ impl_rdp! {
         close       = _{ ["}}"] }
         path        = @{ dot | (identifier ~ (["."] ~ identifier)*) }
         dot         = { ["."] }
-        identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"])+ }
+        identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["?"])+ }
         whitespace  = _{ [" "] | ["\t"] | ["\r"] | ["\n"]}
     }
 
@@ -198,11 +198,11 @@ mod tests {
 
     #[test]
     fn identifier() {
-        let mut parser = Rdp::new(StringInput::new("abc"));
+        let mut parser = Rdp::new(StringInput::new("abc?"));
         assert!(parser.identifier());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::identifier, 0, 3)];
+        let expected = vec![Token::new(Rule::identifier, 0, 4)];
         assert_eq!(&expected, parser.queue());
     }
 
