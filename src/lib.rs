@@ -98,10 +98,10 @@ impl_rdp! {
         variable    = !@{ open ~ path ~ close }
         html        = !@{ (["{{{"] ~ path ~ ["}}}"]) | (["{{&"] ~ path ~ close) }
         section     = @{ sopen ~ block ~ sclose }
-        sopen       = !@{ ["{{#"] ~ path ~ close }
-        sclose      = !@{ ["{{/"] ~ path ~ close }
+        sopen       = !@{ ["{{#"] ~ [push(path)] ~ close }
+        sclose      = !@{ ["{{/"] ~ [pop()] ~ close }
         inverted    = @{ invopen ~ block ~ sclose }
-        invopen     = !@{ ["{{^"] ~ path ~ close }
+        invopen     = !@{ ["{{^"] ~ [push(path)] ~ close }
         comment     = { ["{{!"] ~ ctext ~ close }
         ctext       = { (!close ~ any)* }
         partial     = !@{ ["{{>"] ~ partial_id ~ close }
@@ -111,7 +111,7 @@ impl_rdp! {
         path        = @{ dot | (identifier ~ (["."] ~ identifier)*) }
         dot         = { ["."] }
         identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["?"] | ["!"])+ }
-        whitespace  = _{ [" "] | ["\t"] | ["\r"] | ["\n"]}
+        whitespace  = _{ [" "] | ["\t"] | ["\r"] | ["\n"] }
     }
 
     process! {
@@ -158,17 +158,11 @@ impl_rdp! {
             (_: partial, &name: partial_id) => {
                 Ok(Statement::Partial(String::from(name)))
             },
-            (_: section, _: sopen, open: _path(), block: _block(), _: sclose, close: _path()) => {
-                if open != close {
-                    return Err(ParseError::InvalidSection(open, close));
-                }
-                Ok(Statement::Section(open, block?))
+            (_: section, _: sopen, path: _path(), block: _block(), _: sclose) => {
+                Ok(Statement::Section(path, block?))
             },
-            (_: inverted, _: invopen, open: _path(), block: _block(), _: sclose, close: _path()) => {
-                if open != close {
-                    return Err(ParseError::InvalidSection(open, close));
-                }
-                Ok(Statement::Inverted(open, block?))
+            (_: inverted, _: invopen, path: _path(), block: _block(), _: sclose) => {
+                Ok(Statement::Inverted(path, block?))
             }
         }
 
@@ -262,9 +256,7 @@ mod tests {
                             Token::new(Rule::path, 4, 5),
                             Token::new(Rule::identifier, 4, 5),
                             Token::new(Rule::block, 7, 7),
-                            Token::new(Rule::sclose, 7, 14),
-                            Token::new(Rule::path, 11, 12),
-                            Token::new(Rule::identifier, 11, 12)];
+                            Token::new(Rule::sclose, 7, 14)];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -279,10 +271,15 @@ mod tests {
                             Token::new(Rule::path, 4, 5),
                             Token::new(Rule::identifier, 4, 5),
                             Token::new(Rule::block, 7, 7),
-                            Token::new(Rule::sclose, 7, 14),
-                            Token::new(Rule::path, 11, 12),
-                            Token::new(Rule::identifier, 11, 12)];
+                            Token::new(Rule::sclose, 7, 14)];
         assert_eq!(&expected, parser.queue());
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_section() {
+        let mut parser = Rdp::new(StringInput::new("{{#one}}test{{/two}}"));
+        assert!(parser.section());
     }
 
     #[test]
@@ -394,8 +391,6 @@ mod tests {
                             Token::new(Rule::statement, 122, 144),
                             Token::new(Rule::content, 122, 144),
                             Token::new(Rule::sclose, 144, 156),
-                            Token::new(Rule::path, 148, 154),
-                            Token::new(Rule::identifier, 148, 154),
                             Token::new(Rule::statement, 156, 173),
                             Token::new(Rule::content, 156, 173),
                             Token::new(Rule::statement, 173, 283),
@@ -412,8 +407,6 @@ mod tests {
                             Token::new(Rule::statement, 224, 271),
                             Token::new(Rule::content, 224, 271),
                             Token::new(Rule::sclose, 271, 283),
-                            Token::new(Rule::path, 275, 281),
-                            Token::new(Rule::identifier, 275, 281),
                             Token::new(Rule::statement, 283, 314),
                             Token::new(Rule::content, 283, 314),
                             Token::new(Rule::statement, 314, 336),
@@ -429,17 +422,6 @@ mod tests {
                             Token::new(Rule::statement, 371, 380),
                             Token::new(Rule::content, 371, 380)];
         assert_eq!(&expected, parser.queue());
-    }
-
-    #[test]
-    fn invalid_section() {
-        let mut parser = Rdp::new(StringInput::new("{{#one}}test{{/two}}"));
-        assert!(parser.program());
-        assert!(parser.end());
-        match parser.tree() {
-            Err(ParseError::InvalidSection(..)) => (),
-            _ => panic!("Must enforce matching section paths"),
-        }
     }
 
     #[test]
