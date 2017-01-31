@@ -63,7 +63,7 @@ impl Statement {
     pub fn parse(template: &str) -> Result<Statement, ParseError> {
         let mut parser = Rdp::new(StringInput::new(template));
         if parser.program() && parser.end() {
-            parser.tree()
+            Ok(parser.tree())
         } else {
             let (_, position) = parser.expected();
             Err(ParseError::UnexpectedToken(position))
@@ -115,54 +115,49 @@ impl_rdp! {
     }
 
     process! {
-        tree(&self) -> Result<Statement, ParseError> {
+        tree(&self) -> Statement {
             (_: program, block: _block()) => {
-                Ok(Statement::Program(block?))
+                Statement::Program(block)
             }
         }
 
-        _block(&self) -> Result<Block, ParseError> {
+        _block(&self) -> Block {
             (_: block, list: _statements()) => {
-                Ok(Block::new(list?))
+                Block::new(list)
             }
         }
 
-        _statements(&self) -> Result<Vec<Statement>, ParseError> {
-            (_: statement, head: _statement(), tail: _statements()) => {
-                match tail {
-                    Ok(mut tail) => {
-                        tail.insert(0, head?);
-                        Ok(tail)
-                    }
-                    Err(e) => Err(e),
-                }
+        _statements(&self) -> Vec<Statement> {
+            (_: statement, head: _statement(), mut tail: _statements()) => {
+                tail.insert(0, head);
+                tail
             },
             () => {
-                Ok(Vec::new())
+                Vec::new()
             }
         }
 
-        _statement(&self) -> Result<Statement, ParseError> {
+        _statement(&self) -> Statement {
             (_: comment, &text: ctext) => {
-                Ok(Statement::Comment(String::from(text)))
+                Statement::Comment(String::from(text))
             },
             (&text: content) => {
-                Ok(Statement::Content(String::from(text)))
+                Statement::Content(String::from(text))
             },
             (_: variable, path: _path()) => {
-                Ok(Statement::Variable(path))
+                Statement::Variable(path)
             },
             (_: html, path: _path()) => {
-                Ok(Statement::Html(path))
+                Statement::Html(path)
             },
             (_: partial, &name: partial_id) => {
-                Ok(Statement::Partial(String::from(name)))
+                Statement::Partial(String::from(name))
             },
             (_: section, _: sopen, path: _path(), block: _block(), _: sclose) => {
-                Ok(Statement::Section(path, block?))
+                Statement::Section(path, block)
             },
             (_: inverted, _: invopen, path: _path(), block: _block(), _: sclose) => {
-                Ok(Statement::Inverted(path, block?))
+                Statement::Inverted(path, block)
             }
         }
 
@@ -472,10 +467,6 @@ mod tests {
                  Statement::Html(Path::new(vec![String::from("unescaped"), String::from("html")])),
                  Statement::Content(String::from("\n        "))];
         let expected = Statement::Program(Block::new(program));
-
-        match parser.tree() {
-            Ok(tree) => assert_eq!(expected, tree),
-            Err(e) => panic!("{}", e),
-        }
+        assert_eq!(expected, parser.tree());
     }
 }
