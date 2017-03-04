@@ -44,6 +44,23 @@ impl Block {
     fn new(statements: Vec<Statement>) -> Self {
         Block { statements: statements }
     }
+
+    /// Adds the statement as the final element in the block, combining it with
+    /// a previous content statement if possible.
+    fn append(&mut self, statement: Statement) {
+        let trailer = match self.statements.pop() {
+            Some(mut last) => {
+                if last.merge(&statement) {
+                    last
+                } else {
+                    self.statements.push(last);
+                    statement
+                }
+            }
+            None => statement,
+        };
+        self.statements.push(trailer);
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -203,6 +220,22 @@ impl_rdp! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn append() {
+        let mut block = Block::new(vec![Statement::Comment("a".into())]);
+        block.append(Statement::Content("b".into()));
+        let expected = Block::new(vec![Statement::Comment("a".into()),
+                                       Statement::Content("b".into())]);
+        assert_eq!(expected, block);
+    }
+
+    #[test]
+    fn append_and_merge() {
+        let mut block = Block::new(vec![Statement::Content("a".into())]);
+        block.append(Statement::Content("b".into()));
+        assert_eq!(Block::new(vec![Statement::Content("ab".into())]), block);
+    }
 
     #[test]
     fn merge() {
