@@ -36,7 +36,7 @@ impl Name {
     /// `include/header -> include_header`.
     pub fn id(&self) -> String {
         let re = Regex::new(r"[^\w]").unwrap();
-        re.replace_all(&self.base, "_")
+        re.replace_all(&self.base, "_").into_owned()
     }
 }
 

@@ -294,7 +294,7 @@ fn clean(text: &str) -> String {
     let text = re.replace_all(&text, "\\n");
 
     let re = Regex::new(r#"["]"#).unwrap();
-    re.replace_all(&text, "\\\"")
+    re.replace_all(&text, "\\\"").into_owned()
 }
 
 /// Transforms a Mustache variable key path into the source code to build a
