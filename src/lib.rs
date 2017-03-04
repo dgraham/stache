@@ -45,6 +45,26 @@ impl Block {
         Block { statements: statements }
     }
 
+    /// Adds the statement as the first element in the block, combining it
+    /// with a previous content statement if possible.
+    fn prepend(&mut self, mut statement: Statement) {
+        let leader = match self.statements.get_mut(0) {
+            Some(first) => {
+                if statement.merge(first) {
+                    *first = statement;
+                    None
+                } else {
+                    Some(statement)
+                }
+            }
+            None => Some(statement),
+        };
+
+        if let Some(stmt) = leader {
+            self.statements.insert(0, stmt);
+        }
+    }
+
     /// Adds the statement as the final element in the block, combining it with
     /// a previous content statement if possible.
     fn append(&mut self, statement: Statement) {
@@ -235,6 +255,22 @@ mod tests {
         let mut block = Block::new(vec![Statement::Content("a".into())]);
         block.append(Statement::Content("b".into()));
         assert_eq!(Block::new(vec![Statement::Content("ab".into())]), block);
+    }
+
+    #[test]
+    fn prepend() {
+        let mut block = Block::new(vec![Statement::Comment("a".into())]);
+        block.prepend(Statement::Content("b".into()));
+        let expected = Block::new(vec![Statement::Content("b".into()),
+                                       Statement::Comment("a".into())]);
+        assert_eq!(expected, block);
+    }
+
+    #[test]
+    fn prepend_and_merge() {
+        let mut block = Block::new(vec![Statement::Content("a".into())]);
+        block.prepend(Statement::Content("b".into()));
+        assert_eq!(Block::new(vec![Statement::Content("ba".into())]), block);
     }
 
     #[test]
