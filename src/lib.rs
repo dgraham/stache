@@ -87,6 +87,24 @@ impl Statement {
             _ => Vec::new(),
         }
     }
+
+    /// Combines adjacent content statements into a single statement.
+    ///
+    /// Returns true if the statements were merged.
+    fn merge(&mut self, statement: &Statement) -> bool {
+        match *self {
+            Statement::Content(ref mut left) => {
+                match *statement {
+                    Statement::Content(ref right) => {
+                        left.push_str(right);
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
 }
 
 impl_rdp! {
@@ -184,8 +202,15 @@ impl_rdp! {
 
 #[cfg(test)]
 mod tests {
-    use pest::prelude::*;
     use super::*;
+
+    #[test]
+    fn merge() {
+        let mut a = Statement::Content("a".into());
+        let b = Statement::Content("b".into());
+        assert!(a.merge(&b));
+        assert_eq!(Statement::Content("ab".into()), a);
+    }
 
     #[test]
     fn identifier() {
