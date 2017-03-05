@@ -17,9 +17,6 @@ $ stache -d app/templates/ -o stache.c --emit=ruby && clang-format -i -style=web
 $ git submodule update --init
 $ cargo test
 $ cargo build
-
-# Test Mustache specification compliance (ignored until whitespace tests pass)
-$ cargo test -- --ignored
 ```
 
 ## License
