@@ -1,4 +1,4 @@
-#![recursion_limit = "70"]
+#![recursion_limit = "80"]
 
 #[macro_use]
 extern crate pest;
@@ -43,6 +43,10 @@ pub struct Block {
 impl Block {
     fn new(statements: Vec<Statement>) -> Self {
         Block { statements: statements }
+    }
+
+    fn empty() -> Self {
+        Self::new(vec![])
     }
 
     /// Adds the statement as the first element in the block, combining it
@@ -90,7 +94,7 @@ pub enum Statement {
     Inverted(Path, Block),
     Variable(Path),
     Html(Path),
-    Partial(String),
+    Partial(String, Option<String>),
     Content(String),
     Comment(String),
 }
@@ -120,7 +124,7 @@ impl Statement {
             Statement::Inverted(_, ref block) => {
                 block.statements.iter().flat_map(|stmt| stmt.partials()).collect()
             }
-            Statement::Partial(ref name) => vec![name],
+            Statement::Partial(ref name, _) => vec![name],
             _ => Vec::new(),
         }
     }
@@ -144,28 +148,75 @@ impl Statement {
     }
 }
 
+pub struct Padding {
+    column: usize,
+    text: String,
+}
+
+impl Padding {
+    fn new(column: usize, text: &str) -> Self {
+        Padding {
+            column: column,
+            text: text.into(),
+        }
+    }
+
+    fn maybe(self) -> Option<String> {
+        match self.text.len() {
+            0 => None,
+            _ => Some(self.text),
+        }
+    }
+}
+
 impl_rdp! {
     grammar! {
-        program     = { block ~ eoi }
-        block       = @{ statement* }
-        statement   = { comment | content | variable | html | section | inverted | partial }
-        content     = { (!open ~ any)+ }
+        program     = @{ block }
+        block       = { statement* }
+        statement   = { content | mcomment | section | variable | partial | html }
+        content     = { (!(open | standalone_tag) ~ any)+ }
         variable    = !@{ open ~ path ~ close }
         html        = !@{ (["{{{"] ~ path ~ ["}}}"]) | (["{{&"] ~ path ~ close) }
-        section     = @{ sopen ~ block ~ sclose }
-        sopen       = !@{ ["{{#"] ~ [push(path)] ~ close }
+
+        partial             = { standalone_partial | partial_tag }
+        standalone_partial  = { indent ~ partial_tag ~ (terminator | eoi) }
+        partial_id          = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["/"])+ }
+
+        mcomment            = { standalone_comment | comment_tag }
+        standalone_comment  = { indent ~ comment_tag ~ (terminator | eoi) }
+        ctext               = { (!close ~ any)* }
+
+        section_open_tag    = !@{ (["{{#"] | ["{{^"]) ~ path ~ close }
+        section_close_tag   = !@{ ["{{/"] ~ path ~ close }
+        partial_tag         = !@{ ["{{>"] ~ partial_id ~ close }
+        comment_tag         = !@{ ["{{!"] ~ ctext ~ close }
+        standalone_tag = {
+            indent ~ (
+                section_open_tag |
+                section_close_tag |
+                partial_tag |
+                comment_tag
+            ) ~ (terminator | eoi)
+        }
+
+        indent      = { ([" "] | ["\t"])* }
+        stand_open  = { indent ~ sopen ~ terminator }
+        stand_close = { indent ~ sclose ~ (terminator | eoi) }
+
+        section     = { (stand_open | sopen) ~ block ~ (stand_close | sclose) }
+        sopen       = !@{ (pound | caret) ~ [push(path)] ~ close }
         sclose      = !@{ ["{{/"] ~ [pop()] ~ close }
-        inverted    = @{ invopen ~ block ~ sclose }
-        invopen     = !@{ ["{{^"] ~ [push(path)] ~ close }
-        comment     = { ["{{!"] ~ ctext ~ close }
-        ctext       = { (!close ~ any)* }
-        partial     = !@{ ["{{>"] ~ partial_id ~ close }
-        partial_id  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["/"])+ }
+
         open        = _{ ["{{"] }
         close       = _{ ["}}"] }
-        path        = @{ dot | (identifier ~ (["."] ~ identifier)*) }
+        pound       = { ["{{#"] }
+        caret       = { ["{{^"] }
+
         dot         = { ["."] }
+        path        = @{ dot | (identifier ~ (["."] ~ identifier)*) }
         identifier  = { (['a'..'z'] | ['A'..'Z'] | ['0'..'9'] | ["-"] | ["_"] | ["?"] | ["!"])+ }
+
+        terminator  = { ["\r"]? ~ ["\n"] }
         whitespace  = _{ [" "] | ["\t"] | ["\r"] | ["\n"] }
     }
 
@@ -179,40 +230,194 @@ impl_rdp! {
         _block(&self) -> Block {
             (_: block, list: _statements()) => {
                 Block::new(list)
+            },
+            () => {
+                Block::empty()
             }
         }
 
         _statements(&self) -> Vec<Statement> {
-            (_: statement, head: _statement(), mut tail: _statements()) => {
-                tail.insert(0, head);
-                tail
+            (_: statement, mut head: _statement(), mut tail: _statements()) => {
+                head.append(&mut tail);
+                head
             },
             () => {
                 Vec::new()
             }
         }
 
-        _statement(&self) -> Statement {
-            (_: comment, &text: ctext) => {
-                Statement::Comment(String::from(text))
+        _statement(&self) -> Vec<Statement> {
+            (_: mcomment, statements: _comment()) => {
+                statements
             },
             (&text: content) => {
-                Statement::Content(String::from(text))
+                vec![Statement::Content(text.into())]
             },
             (_: variable, path: _path()) => {
-                Statement::Variable(path)
+                vec![Statement::Variable(path)]
             },
             (_: html, path: _path()) => {
-                Statement::Html(path)
+                vec![Statement::Html(path)]
             },
-            (_: partial, &name: partial_id) => {
-                Statement::Partial(String::from(name))
+            (_: partial, statements: _partial()) => {
+                statements
             },
-            (_: section, _: sopen, path: _path(), block: _block(), _: sclose) => {
-                Statement::Section(path, block)
+            (_: section, statements: _section()) => {
+                statements
+            }
+        }
+
+        _comment(&self) -> Vec<Statement> {
+            (_: standalone_comment, padding: _indent(), ctext: _ctext()) => {
+                let (text, terminator) = ctext;
+
+                // Standalone comment consumes leading and trailing whitespace.
+                if padding.column == 1 {
+                    return vec![Statement::Comment(text)];
+                }
+
+                // Inline comment emits whitespace content.
+                let mut statements = match padding.maybe() {
+                    Some(text) => vec![Statement::Content(text)],
+                    None => vec![],
+                };
+
+                statements.push(Statement::Comment(text));
+
+                if let Some(text) = terminator {
+                    statements.push(Statement::Content(text.into()));
+                }
+
+                statements
             },
-            (_: inverted, _: invopen, path: _path(), block: _block(), _: sclose) => {
-                Statement::Inverted(path, block)
+            (ctext: _ctext()) => {
+                let (text, _) = ctext;
+                vec![Statement::Comment(text)]
+            }
+        }
+
+        _indent(&self) -> Padding {
+            (padding: indent) => {
+                let (_, column) = self.input.line_col(padding.start);
+                let text = self.input.slice(padding.start, padding.end);
+                Padding::new(column, text)
+            }
+        }
+
+        _ctext(&self) -> (String, Option<String>) {
+            (_: comment_tag, &text: ctext, &terminate: terminator) => {
+                (text.into(), Some(terminate.into()))
+            },
+            (_: comment_tag, &text: ctext) => {
+                (text.into(), None)
+            }
+        }
+
+        _partial(&self) -> Vec<Statement> {
+            (_: standalone_partial, padding: _indent(), ident: _partial_id()) => {
+                let (name, terminator) = ident;
+
+                // Standalone partial consumes leading and trailing whitespace.
+                if padding.column == 1 {
+                    return vec![Statement::Partial(name, padding.maybe())];
+                }
+
+                // Inline partial emits whitespace content.
+                let mut statements = match padding.maybe() {
+                    Some(text) => vec![Statement::Content(text)],
+                    None => vec![],
+                };
+
+                statements.push(Statement::Partial(name, None));
+
+                if let Some(text) = terminator {
+                    statements.push(Statement::Content(text.into()));
+                }
+
+                statements
+            },
+            (ident: _partial_id()) => {
+                let (name, _) = ident;
+                vec![Statement::Partial(name, None)]
+            }
+        }
+
+        _partial_id(&self) -> (String, Option<String>) {
+            (_: partial_tag, &name: partial_id, &terminate: terminator) => {
+                (name.into(), Some(terminate.into()))
+            },
+            (_: partial_tag, &name: partial_id) => {
+                (name.into(), None)
+            }
+        }
+
+        _section(&self) -> Vec<Statement> {
+            (opening: _section_open(), mut block: _block(), closing: _section_close()) => {
+                let (leading, path, kind, terminator) = opening;
+
+                // Inline open tag emits leading whitespace.
+                let mut statements = match leading {
+                    Some(text) => vec![Statement::Content(text)],
+                    None => vec![],
+                };
+
+                // Inline open tag emits line terminator.
+                if let Some(text) = terminator {
+                    block.prepend(Statement::Content(text));
+                }
+
+                // Inline close tag emits leading whitespace.
+                let (leading, terminator) = closing;
+                if let Some(text) = leading {
+                    block.append(Statement::Content(text));
+                }
+
+                // Emit fully formed section block.
+                statements.push(match kind {
+                    Rule::caret => Statement::Inverted(path, block),
+                    Rule::pound => Statement::Section(path, block),
+                    _ => unreachable!(),
+                });
+
+                // Inline close tag emits line terminator.
+                if let Some(text) = terminator {
+                    statements.push(Statement::Content(text));
+                }
+
+                statements
+            }
+        }
+
+        _section_open(&self) -> (Option<String>, Path, Rule, Option<String>) {
+            (_: stand_open, padding: _indent(), _: sopen, kind, path: _path(), &terminate: terminator) => {
+                if padding.column == 1 {
+                    (None, path, kind.rule, None)
+                } else {
+                    (padding.maybe(), path, kind.rule, Some(terminate.into()))
+                }
+            },
+            (_: sopen, kind, path: _path()) => {
+                (None, path, kind.rule, None)
+            }
+        }
+
+        _section_close(&self) -> (Option<String>, Option<String>) {
+            (_: stand_close, padding: _indent(), _: sclose, &terminate: terminator) => {
+                if padding.column == 1 {
+                    (None, None)
+                } else {
+                    (padding.maybe(), Some(terminate.into()))
+                }
+            },
+            (_: stand_close, padding: _indent(), _sclose) => {
+                if padding.column == 1 {
+                    (None, None)
+                } else {
+                    (padding.maybe(), None)
+                }
+            },
+            (_: sclose) => {
+                (None, None)
             }
         }
 
@@ -315,56 +520,6 @@ mod tests {
     }
 
     #[test]
-    fn partial() {
-        let mut parser = Rdp::new(StringInput::new("{{> a/b}}"));
-        assert!(parser.partial());
-        assert!(parser.end());
-
-        let expected = vec![Token::new(Rule::partial, 0, 9), Token::new(Rule::partial_id, 4, 7)];
-        assert_eq!(&expected, parser.queue());
-    }
-
-    #[test]
-    fn comment() {
-        let mut parser = Rdp::new(StringInput::new("{{! a b c}}"));
-        assert!(parser.comment());
-        assert!(parser.end());
-
-        let expected = vec![Token::new(Rule::comment, 0, 11), Token::new(Rule::ctext, 3, 9)];
-        assert_eq!(&expected, parser.queue());
-    }
-
-    #[test]
-    fn inverted() {
-        let mut parser = Rdp::new(StringInput::new("{{^ a}}{{/ a}}"));
-        assert!(parser.inverted());
-        assert!(parser.end());
-
-        let expected = vec![Token::new(Rule::inverted, 0, 14),
-                            Token::new(Rule::invopen, 0, 7),
-                            Token::new(Rule::path, 4, 5),
-                            Token::new(Rule::identifier, 4, 5),
-                            Token::new(Rule::block, 7, 7),
-                            Token::new(Rule::sclose, 7, 14)];
-        assert_eq!(&expected, parser.queue());
-    }
-
-    #[test]
-    fn section() {
-        let mut parser = Rdp::new(StringInput::new("{{# a}}{{/ a}}"));
-        assert!(parser.section());
-        assert!(parser.end());
-
-        let expected = vec![Token::new(Rule::section, 0, 14),
-                            Token::new(Rule::sopen, 0, 7),
-                            Token::new(Rule::path, 4, 5),
-                            Token::new(Rule::identifier, 4, 5),
-                            Token::new(Rule::block, 7, 7),
-                            Token::new(Rule::sclose, 7, 14)];
-        assert_eq!(&expected, parser.queue());
-    }
-
-    #[test]
     #[should_panic]
     fn invalid_section() {
         let mut parser = Rdp::new(StringInput::new("{{#one}}test{{/two}}"));
@@ -420,97 +575,362 @@ mod tests {
     }
 
     #[test]
-    fn whitespace() {
-        let mut parser = Rdp::new(StringInput::new("{{ a }} b"));
+    fn inline_section() {
+        let mut parser = Rdp::new(StringInput::new("a{{#b}}c{{/b}}d"));
         assert!(parser.program());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::program, 0, 9),
-                            Token::new(Rule::block, 0, 9),
-                            Token::new(Rule::statement, 0, 7),
-                            Token::new(Rule::variable, 0, 7),
-                            Token::new(Rule::path, 3, 4),
-                            Token::new(Rule::identifier, 3, 4),
-                            Token::new(Rule::statement, 7, 9),
-                            Token::new(Rule::content, 7, 9)];
-        assert_eq!(&expected, parser.queue());
+        let program = vec![Statement::Content("a".into()),
+                           Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("c".into())])),
+                           Statement::Content("d".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
     }
 
     #[test]
-    fn program() {
-        let mut parser = Rdp::new(StringInput::new("
-            {{> includes/header }}
-            <ul>
-                {{# robots}}
-                    <li>{{ name.first }}</li>
-                {{/ robots}}
-                {{^ robots}}
-                    {{! else clause }}
-                    No robots
-                {{/ robots}}
-            </ul>
-            {{> includes/footer }}
-            {{{ unescaped.html }}}
-        "));
+    fn inverted_section() {
+        let mut parser = Rdp::new(StringInput::new("a{{^b}}c{{/b}}d"));
         assert!(parser.program());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::program, 0, 380),
-                            Token::new(Rule::block, 0, 380),
-                            Token::new(Rule::statement, 0, 13),
-                            Token::new(Rule::content, 0, 13),
-                            Token::new(Rule::statement, 13, 35),
-                            Token::new(Rule::partial, 13, 35),
-                            Token::new(Rule::partial_id, 17, 32),
-                            Token::new(Rule::statement, 35, 69),
-                            Token::new(Rule::content, 35, 69),
-                            Token::new(Rule::statement, 69, 156),
-                            Token::new(Rule::section, 69, 156),
-                            Token::new(Rule::sopen, 69, 81),
-                            Token::new(Rule::path, 73, 79),
-                            Token::new(Rule::identifier, 73, 79),
-                            Token::new(Rule::block, 81, 144),
-                            Token::new(Rule::statement, 81, 106),
-                            Token::new(Rule::content, 81, 106),
-                            Token::new(Rule::statement, 106, 122),
-                            Token::new(Rule::variable, 106, 122),
-                            Token::new(Rule::path, 109, 119),
-                            Token::new(Rule::identifier, 109, 113),
-                            Token::new(Rule::identifier, 114, 119),
-                            Token::new(Rule::statement, 122, 144),
-                            Token::new(Rule::content, 122, 144),
-                            Token::new(Rule::sclose, 144, 156),
-                            Token::new(Rule::statement, 156, 173),
-                            Token::new(Rule::content, 156, 173),
-                            Token::new(Rule::statement, 173, 283),
-                            Token::new(Rule::inverted, 173, 283),
-                            Token::new(Rule::invopen, 173, 185),
-                            Token::new(Rule::path, 177, 183),
-                            Token::new(Rule::identifier, 177, 183),
-                            Token::new(Rule::block, 185, 271),
-                            Token::new(Rule::statement, 185, 206),
-                            Token::new(Rule::content, 185, 206),
-                            Token::new(Rule::statement, 206, 224),
-                            Token::new(Rule::comment, 206, 224),
-                            Token::new(Rule::ctext, 209, 222),
-                            Token::new(Rule::statement, 224, 271),
-                            Token::new(Rule::content, 224, 271),
-                            Token::new(Rule::sclose, 271, 283),
-                            Token::new(Rule::statement, 283, 314),
-                            Token::new(Rule::content, 283, 314),
-                            Token::new(Rule::statement, 314, 336),
-                            Token::new(Rule::partial, 314, 336),
-                            Token::new(Rule::partial_id, 318, 333),
-                            Token::new(Rule::statement, 336, 349),
-                            Token::new(Rule::content, 336, 349),
-                            Token::new(Rule::statement, 349, 371),
-                            Token::new(Rule::html, 349, 371),
-                            Token::new(Rule::path, 353, 367),
-                            Token::new(Rule::identifier, 353, 362),
-                            Token::new(Rule::identifier, 363, 367),
-                            Token::new(Rule::statement, 371, 380),
-                            Token::new(Rule::content, 371, 380)];
-        assert_eq!(&expected, parser.queue());
+        let program = vec![Statement::Content("a".into()),
+                           Statement::Inverted(Path::new(vec!["b".into()]),
+                                               Block::new(vec![Statement::Content("c".into())])),
+                           Statement::Content("d".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn empty_standalone_section() {
+        let mut parser = Rdp::new(StringInput::new("\r\n{{^boolean}}\r\n{{/boolean}}\r\n"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("\r\n".into()),
+                           Statement::Inverted(Path::new(vec!["boolean".into()]),
+                                               Block::new(vec![]))];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn empty_inline_section() {
+        let mut parser = Rdp::new(StringInput::new("{{^boolean}}{{/boolean}}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Inverted(Path::new(vec!["boolean".into()]),
+                                               Block::new(vec![]))];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_section_on_standalone_line() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n{{#b}}c{{/b}}\nd"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("c".into())])),
+                           Statement::Content("\n".into()),
+                           Statement::Content("d".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn standalone_section_open_and_close_tags() {
+        let mut parser = Rdp::new(StringInput::new("a\n{{#b}}\nc\n{{/b}}\r\nd"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\n".into()),
+                           Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("c\n".into())])),
+                           Statement::Content("d".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn indented_standalone_section_open_and_close_tags() {
+        let mut parser = Rdp::new(StringInput::new("a\n  {{#b}}\n    c\n  {{/b}}\r\nd"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\n".into()),
+                           Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("    c\n"
+                                                                  .into())])),
+                           Statement::Content("d".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn standalone_section_open_and_close_tags_at_eoi() {
+        let mut parser = Rdp::new(StringInput::new("{{#b}}\nc\n{{/b}}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("c\n".into())]))];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_section_at_input_boundaries() {
+        let mut parser = Rdp::new(StringInput::new("{{#b}}c{{/b}}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("c".into())]))];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_open_indented_standalone_close_at_eoi() {
+        let mut parser = Rdp::new(StringInput::new("{{#b}}c\n  {{/b}}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("c\n".into())]))];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_open_indented_standalone_close_at_eoi_with_leading_content() {
+        let mut parser = Rdp::new(StringInput::new("a{{#b}}\nc\n  {{/b}}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a".into()),
+                           Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("\nc\n"
+                                                                  .into())]))];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_open_indented_inline_close() {
+        let mut parser = Rdp::new(StringInput::new("{{#b}}c\n  {{/b}} a"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("c\n  "
+                                                                  .into())])),
+                           Statement::Content(" a".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_open_indented_inline_close_with_trailing_newline() {
+        let mut parser = Rdp::new(StringInput::new("{{#b}}c\n d {{/b}}\na"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
+                                              Block::new(vec![Statement::Content("c\n d "
+                                                                  .into())])),
+                           Statement::Content("\n".into()),
+                           Statement::Content("a".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_partial() {
+        let mut parser = Rdp::new(StringInput::new("a {{> b }} c"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a ".into()),
+                           Statement::Partial("b".into(), None),
+                           Statement::Content(" c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_partial_at_eoi() {
+        let mut parser = Rdp::new(StringInput::new("a {{> b }}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a".into()),
+                           Statement::Content(" ".into()),
+                           Statement::Partial("b".into(), None)];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_partial_at_eol() {
+        let mut parser = Rdp::new(StringInput::new("a {{> b }}\nc"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a".into()),
+                           Statement::Content(" ".into()),
+                           Statement::Partial("b".into(), None),
+                           Statement::Content("\n".into()),
+                           Statement::Content("c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn standalone_partial() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n{{> b }}\nc"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Partial("b".into(), None),
+                           Statement::Content("c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn indented_standalone_partial() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n  {{> b }}\nc"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Partial("b".into(), Some("  ".into())),
+                           Statement::Content("c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn standalone_partial_with_trailing_content() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n{{> b }}c"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Partial("b".into(), None),
+                           Statement::Content("c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn standalone_partial_at_eoi() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n  {{> b }}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Partial("b".into(), Some("  ".into()))];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_comment() {
+        let mut parser = Rdp::new(StringInput::new("a {{! b }} c"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a ".into()),
+                           Statement::Comment("b".into()),
+                           Statement::Content(" c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_comment_at_eoi() {
+        let mut parser = Rdp::new(StringInput::new("a {{! b }}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a".into()),
+                           Statement::Content(" ".into()),
+                           Statement::Comment("b".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn inline_comment_at_eol() {
+        let mut parser = Rdp::new(StringInput::new("a {{! b }}\nc"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a".into()),
+                           Statement::Content(" ".into()),
+                           Statement::Comment("b".into()),
+                           Statement::Content("\n".into()),
+                           Statement::Content("c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn standalone_comment() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n{{! b }}\nc"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Comment("b".into()),
+                           Statement::Content("c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn indented_standalone_comment() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n  {{! b }}\nc"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Comment("b".into()),
+                           Statement::Content("c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn standalone_comment_with_trailing_content() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n{{! b }}c"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Comment("b".into()),
+                           Statement::Content("c".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
+    }
+
+    #[test]
+    fn standalone_comment_at_eoi() {
+        let mut parser = Rdp::new(StringInput::new("a\r\n  {{! b }}"));
+        assert!(parser.program());
+        assert!(parser.end());
+
+        let program = vec![Statement::Content("a\r\n".into()), Statement::Comment("b".into())];
+        let expected = Statement::Program(Block::new(program));
+        assert_eq!(expected, parser.tree());
     }
 
     #[test]
@@ -533,33 +953,25 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let list = vec![Statement::Content(String::from("\n                    <li>")),
-                        Statement::Variable(Path::new(vec![String::from("name"),
-                                                           String::from("first")])),
-                        Statement::Content(String::from("</li>\n                "))];
-
-        let section = Statement::Section(Path::new(vec![String::from("robots")]), Block::new(list));
-
-
-        let invblock = vec![Statement::Content(String::from("\n                    ")),
-                            Statement::Comment(String::from(" else clause ")),
-                            Statement::Content(String::from("\n                    No robots\n                \
-                                                             "))];
-        let inverted = Statement::Inverted(Path::new(vec![String::from("robots")]),
-                                           Block::new(invblock));
 
         let program =
-            vec![Statement::Content(String::from("\n            ")),
-                 Statement::Partial(String::from("includes/header")),
-                 Statement::Content(String::from("\n            <ul>\n                ")),
-                 section,
-                 Statement::Content(String::from("\n                ")),
-                 inverted,
-                 Statement::Content(String::from("\n            </ul>\n            ")),
-                 Statement::Partial(String::from("includes/footer")),
-                 Statement::Content(String::from("\n            ")),
-                 Statement::Html(Path::new(vec![String::from("unescaped"), String::from("html")])),
-                 Statement::Content(String::from("\n        "))];
+            vec![Statement::Content("\n".into()),
+                 Statement::Partial("includes/header".into(), Some("            ".into())),
+                 Statement::Content("            <ul>\n".into()),
+                 Statement::Section(Path::new(vec!["robots".into()]),
+                                    Block::new(vec![Statement::Content("                    <li>".into()),
+                                                    Statement::Variable(Path::new(vec!["name".into(),
+                                                                                       "first".into()])),
+                                                    Statement::Content("</li>\n".into())])),
+                 Statement::Inverted(Path::new(vec!["robots".into()]),
+                                     Block::new(vec![Statement::Comment("else clause".into()),
+                                                     Statement::Content("                    No robots\n".into())])),
+                 Statement::Content("            </ul>\n".into()),
+                 Statement::Partial("includes/footer".into(), Some("            ".into())),
+                 Statement::Content("            ".into()),
+                 Statement::Html(Path::new(vec!["unescaped".into(), "html".into()])),
+                 Statement::Content("\n        ".into())];
+
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }

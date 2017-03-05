@@ -13,7 +13,6 @@ use stache::ruby;
 use tempdir::TempDir;
 use yaml_rust::{Yaml, YamlLoader};
 
-#[ignore]
 #[test]
 fn ruby() {
     let build = TempDir::new("stache-build").unwrap();

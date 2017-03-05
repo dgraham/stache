@@ -222,7 +222,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
             scope.register(fun);
             Some(call)
         }
-        Statement::Partial(ref name) => {
+        Statement::Partial(ref name, ref padding) => {
             let name = Name::new(name);
             Some(format!("render_{}(buf, stack);", name.id()))
         }
@@ -322,7 +322,7 @@ mod tests {
     fn validates_valid_partial_reference() {
         let base = PathBuf::from("app/templates");
         let path = PathBuf::from("app/templates/machines/robots.mustache");
-        let tree = Statement::Partial(String::from("machines/robot"));
+        let tree = Statement::Partial(String::from("machines/robot"), None);
         let master = Template::new(&base, path, tree);
 
         let path = PathBuf::from("app/templates/machines/robot.mustache");
@@ -340,7 +340,8 @@ mod tests {
     fn validates_invalid_partial_reference() {
         let base = PathBuf::from("app/templates");
         let path = PathBuf::from("app/templates/machines/robots.mustache");
-        let tree = Statement::Partial(String::from("machines/unknown"));
+        let tree = Statement::Partial(String::from("machines/unknown"), None);
+
         let master = Template::new(&base, path, tree);
 
         let path = PathBuf::from("app/templates/machines/robot.mustache");
@@ -382,7 +383,7 @@ mod tests {
                 // One for each section, private render, and exported template function.
                 let names: Vec<_> = scope.functions.iter().map(|fun| &fun.name).collect();
                 assert_eq!(vec!["section_machines_robot7",
-                                "section_machines_robot12",
+                                "section_machines_robot10",
                                 "render_machines_robot"],
                            names);
 
