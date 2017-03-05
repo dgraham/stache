@@ -52,7 +52,7 @@ static VALUE fetch(VALUE context, VALUE key) {
 
 static VALUE context_fetch(VALUE stack, VALUE key) {
     for (long i = RARRAY_LEN(stack) - 1; i >= 0; i--) {
-        VALUE context = rb_ary_entry(stack, i);
+        VALUE context = RARRAY_AREF(stack, i);
         VALUE value = fetch(context, key);
         if (value != Qundef) {
             return value;
@@ -62,12 +62,12 @@ static VALUE context_fetch(VALUE stack, VALUE key) {
 }
 
 static VALUE fetch_path(VALUE stack, VALUE path) {
-    VALUE value = context_fetch(stack, rb_ary_entry(path, 0));
+    VALUE value = context_fetch(stack, RARRAY_AREF(path, 0));
     if (value == Qnil) {
         return Qnil;
     }
     for (long i = 1; i < RARRAY_LEN(path); i++) {
-        value = fetch(value, rb_ary_entry(path, i));
+        value = fetch(value, RARRAY_AREF(path, i));
         if (value == Qundef) {
             return Qnil;
         }
@@ -95,7 +95,7 @@ static void section(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VAL
     switch (rb_type(value)) {
         case T_ARRAY:
             for (long i = 0; i < RARRAY_LEN(value); i++) {
-                rb_ary_push(stack, rb_ary_entry(value, i));
+                rb_ary_push(stack, RARRAY_AREF(value, i));
                 block(buf, stack);
                 rb_ary_pop(stack);
             }
