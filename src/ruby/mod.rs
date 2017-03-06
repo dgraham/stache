@@ -228,8 +228,14 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
         }
         Statement::Comment(_) => None,
         Statement::Content(ref text) => {
-            let text = clean(text);
-            Some(format!("rb_str_cat_cstr(buf, \"{}\");", text))
+            let content = clean(text);
+            let append = format!("{{
+                static const char *content = \"{}\";
+                rb_str_buf_append(buf, rb_str_new_static(content, {}));
+            }}",
+                                 content,
+                                 text.len());
+            Some(append)
         }
         Statement::Variable(ref path) => {
             let path = path_ary(path);
