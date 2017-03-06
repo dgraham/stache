@@ -195,7 +195,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
                 export: None,
             };
 
-            let call = format!("{{ {} section(buf, stack, path, {}); }}",
+            let call = format!("{{ {} section(buf, stack, &path, {}); }}",
                                path_ary(path),
                                fun.name);
 
@@ -215,7 +215,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
                 export: None,
             };
 
-            let call = format!("{{ {} inverted(buf, stack, path, {}); }}",
+            let call = format!("{{ {} inverted(buf, stack, &path, {}); }}",
                                path_ary(path),
                                fun.name);
 
@@ -233,11 +233,11 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
         }
         Statement::Variable(ref path) => {
             let path = path_ary(path);
-            Some(format!("{{ {} append_value(buf, stack, path, true); }}", path))
+            Some(format!("{{ {} append_value(buf, stack, &path, true); }}", path))
         }
         Statement::Html(ref path) => {
             let path = path_ary(path);
-            Some(format!("{{ {} append_value(buf, stack, path, false); }}", path))
+            Some(format!("{{ {} append_value(buf, stack, &path, false); }}", path))
         }
     }
 }
@@ -303,13 +303,13 @@ fn clean(text: &str) -> String {
 fn path_ary(path: &Path) -> String {
     let args = path.keys
         .iter()
-        .map(|key| format!("rb_str_new_cstr(\"{}\")", key))
+        .map(|key| format!("\"{}\"", key))
         .collect::<Vec<String>>()
         .join(", ");
 
-    format!("VALUE path = rb_ary_new_from_args({}, {});",
-            path.keys.len(),
-            args)
+    format!("static const struct path path = {{ .keys = {{ {} }}, .length = {} }};",
+            args,
+            path.keys.len())
 }
 
 #[cfg(test)]

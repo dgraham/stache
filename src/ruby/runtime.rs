@@ -11,25 +11,32 @@ static ID id_to_s;
 
 static VALUE cCGI;
 
-static VALUE fetch(VALUE context, VALUE key) {
-    if (RSTRING_LEN(key) == 1 && strncmp(StringValuePtr(key), DOT, 1) == 0) {
+struct path {
+    char *keys[16];
+    int length;
+};
+
+static VALUE fetch(VALUE context, const char *key) {
+    if (strlen(key) == 1 && strncmp(key, DOT, 1) == 0) {
         return context;
     }
 
     switch (rb_type(context)) {
-        case T_HASH:
-            if (RTEST(rb_funcall(context, id_key_p, 1, key))) {
-                return rb_hash_aref(context, key);
+        case T_HASH: {
+            VALUE key_str = rb_str_new_cstr(key);
+            if (RTEST(rb_funcall(context, id_key_p, 1, key_str))) {
+                return rb_hash_aref(context, key_str);
             } else {
-                VALUE sym = ID2SYM(rb_to_id(key));
+                VALUE sym = ID2SYM(rb_intern(key));
                 if (RTEST(rb_funcall(context, id_key_p, 1, sym))) {
                     return rb_hash_aref(context, sym);
                 } else {
                     return Qundef;
                 }
             }
+        }
         case T_STRUCT: {
-            VALUE sym = ID2SYM(rb_to_id(key));
+            VALUE sym = ID2SYM(rb_intern(key));
             VALUE members = rb_struct_members(context);
             if (RTEST(rb_ary_includes(members, sym))) {
                 return rb_struct_aref(context, sym);
@@ -38,7 +45,7 @@ static VALUE fetch(VALUE context, VALUE key) {
             }
         }
         case T_OBJECT: {
-            ID method = rb_to_id(key);
+            ID method = rb_intern(key);
             if (rb_respond_to(context, method) && rb_obj_method_arity(context, method) == 0) {
                 return rb_funcall(context, method, 0);
             } else {
@@ -50,7 +57,7 @@ static VALUE fetch(VALUE context, VALUE key) {
     }
 }
 
-static VALUE context_fetch(VALUE stack, VALUE key) {
+static VALUE context_fetch(VALUE stack, const char *key) {
     for (long i = RARRAY_LEN(stack) - 1; i >= 0; i--) {
         VALUE context = RARRAY_AREF(stack, i);
         VALUE value = fetch(context, key);
@@ -61,13 +68,13 @@ static VALUE context_fetch(VALUE stack, VALUE key) {
     return Qnil;
 }
 
-static VALUE fetch_path(VALUE stack, VALUE path) {
-    VALUE value = context_fetch(stack, RARRAY_AREF(path, 0));
+static VALUE fetch_path(VALUE stack, const struct path *path) {
+    VALUE value = context_fetch(stack, path->keys[0]);
     if (value == Qnil) {
         return Qnil;
     }
-    for (long i = 1; i < RARRAY_LEN(path); i++) {
-        value = fetch(value, RARRAY_AREF(path, i));
+    for (long i = 1; i < path->length; i++) {
+        value = fetch(value, path->keys[i]);
         if (value == Qundef) {
             return Qnil;
         }
@@ -75,7 +82,7 @@ static VALUE fetch_path(VALUE stack, VALUE path) {
     return value;
 }
 
-static void append_value(VALUE buf, VALUE stack, VALUE path, bool escape) {
+static void append_value(VALUE buf, VALUE stack, const struct path *path, bool escape) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_NIL:
@@ -90,7 +97,7 @@ static void append_value(VALUE buf, VALUE stack, VALUE path, bool escape) {
     rb_str_buf_append(buf, escape ? rb_funcall(cCGI, id_escape_html, 1, value) : value);
 }
 
-static void section(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VALUE)) {
+static void section(VALUE buf, VALUE stack, const struct path *path, void (*block)(VALUE, VALUE)) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_ARRAY:
@@ -117,7 +124,7 @@ static void section(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VAL
     }
 }
 
-static void inverted(VALUE buf, VALUE stack, VALUE path, void (*block)(VALUE, VALUE)) {
+static void inverted(VALUE buf, VALUE stack, const struct path *path, void (*block)(VALUE, VALUE)) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_ARRAY:
