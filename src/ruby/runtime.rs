@@ -141,6 +141,7 @@ static void inverted(VALUE buf, VALUE stack, const struct path *path, void (*blo
 }
 
 static VALUE render(VALUE self, VALUE name, VALUE context);
+static void initialize();
 
 void Init_stache() {
     VALUE Stache = rb_define_module("Stache");
@@ -152,5 +153,6 @@ void Init_stache() {
     id_escape_html = rb_intern("escapeHTML");
     id_key_p = rb_intern("key?");
     id_to_s = rb_intern("to_s");
+    initialize();
 }
 "#;

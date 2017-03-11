@@ -40,6 +40,13 @@ impl Compile for Program {
         // Emit runtime preamble.
         writeln!(buf, "{}", RUNTIME)?;
 
+        // Emit string content declarations.
+        for string in &self.global.strings {
+            writeln!(buf, "{};", string.decl)?;
+        }
+
+        writeln!(buf, "")?;
+
         // Emit function declarations.
         for fun in &self.global.functions {
             writeln!(buf, "{};", fun.decl)?;
@@ -66,7 +73,14 @@ impl Compile for Program {
                         }}
                         return buf;
                     }}"#,
-                 renders.join(" else "))
+                 renders.join(" else "))?;
+
+        // Emit initialize function.
+        writeln!(buf, "static void initialize() {{")?;
+        for string in &self.global.strings {
+            string.emit(buf)?;
+        }
+        writeln!(buf, "}}")
     }
 }
 
@@ -83,6 +97,7 @@ impl Compile for Program {
 struct Scope {
     name: Name,
     functions: Vec<Function>,
+    strings: Vec<StaticString>,
 }
 
 impl Scope {
@@ -90,12 +105,14 @@ impl Scope {
         Scope {
             name: name,
             functions: Vec::new(),
+            strings: Vec::new(),
         }
     }
 
     /// Combines this scope's function definitions with another's.
     fn merge(&mut self, mut other: Scope) -> &mut Self {
         self.functions.append(&mut other.functions);
+        self.strings.append(&mut other.strings);
         self
     }
 
@@ -112,10 +129,38 @@ impl Scope {
         self.functions.push(fun);
     }
 
+    /// Adds a constant string value to this scope.
+    fn content(&mut self, string: StaticString) {
+        self.strings.push(string);
+    }
+
     /// Returns the template path used to generate function names in this
     /// scope (e.g. "includes/header").
     fn base_name(&self) -> String {
         self.name.base.clone()
+    }
+}
+
+
+#[derive(Debug)]
+struct StaticString {
+    name: String,
+    decl: String,
+    value: String,
+    length: usize,
+}
+
+impl StaticString {
+    /// Writes the raw content string global to the buffer.
+    fn emit(&self, buf: &mut Write) -> io::Result<()> {
+        writeln!(buf, "{{")?;
+        writeln!(buf, "static const char* content = \"{}\";", self.value)?;
+        writeln!(buf,
+                 "{} = rb_str_new_static(content, {});",
+                 self.name,
+                 self.length)?;
+        writeln!(buf, "rb_global_variable(&{});", self.name)?;
+        writeln!(buf, "}}")
     }
 }
 
@@ -229,12 +274,18 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
         Statement::Comment(_) => None,
         Statement::Content(ref text) => {
             let content = clean(text);
-            let append = format!("{{
-                static const char *content = \"{}\";
-                rb_str_buf_append(buf, rb_str_new_static(content, {}));
-            }}",
-                                 content,
-                                 text.len());
+
+            let name = format!("content_{}", scope.next().name);
+            let string = StaticString {
+                decl: format!("static VALUE {}", name),
+                name: name,
+                value: content,
+                length: text.len(),
+            };
+
+            let append = format!("rb_str_buf_append(buf, {});", string.name);
+
+            scope.content(string);
             Some(append)
         }
         Statement::Variable(ref path) => {
