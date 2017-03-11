@@ -439,8 +439,8 @@ mod tests {
 
                 // One for each section, private render, and exported template function.
                 let names: Vec<_> = scope.functions.iter().map(|fun| &fun.name).collect();
-                assert_eq!(vec!["section_machines_robot7",
-                                "section_machines_robot10",
+                assert_eq!(vec!["section_machines_robot11",
+                                "section_machines_robot15",
                                 "render_machines_robot"],
                            names);
 
