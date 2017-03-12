@@ -46,7 +46,7 @@ static VALUE fetch(VALUE context, const char *key) {
         }
         case T_OBJECT: {
             ID method = rb_intern(key);
-            if (rb_respond_to(context, method) && rb_obj_method_arity(context, method) == 0) {
+            if (rb_respond_to(context, method)) {
                 return rb_funcall(context, method, 0);
             } else {
                 return Qundef;
