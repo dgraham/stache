@@ -75,6 +75,8 @@ impl Compile for Program {
                     }}"#,
                  renders.join(" else "))?;
 
+        writeln!(buf, "")?;
+
         // Emit initialize function.
         writeln!(buf, "static void initialize() {{")?;
         for string in &self.global.strings {
@@ -233,9 +235,10 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
                 .filter_map(|stmt| transform(scope.next(), stmt))
                 .collect();
 
+            let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                name: format!("section_{}", scope.name),
-                decl: format!("static void section_{}(VALUE buf, VALUE stack)", scope.name),
+                decl: format!("static void {}(VALUE buf, VALUE stack)", name),
+                name: name,
                 body: children,
                 export: None,
             };
@@ -253,9 +256,10 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
                 .filter_map(|stmt| transform(scope.next(), stmt))
                 .collect();
 
+            let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                name: format!("section_{}", scope.name),
-                decl: format!("static void section_{}(VALUE buf, VALUE stack)", scope.name),
+                decl: format!("static void {}(VALUE buf, VALUE stack)", name),
+                name: name,
                 body: children,
                 export: None,
             };
@@ -439,8 +443,8 @@ mod tests {
 
                 // One for each section, private render, and exported template function.
                 let names: Vec<_> = scope.functions.iter().map(|fun| &fun.name).collect();
-                assert_eq!(vec!["section_machines_robot11",
-                                "section_machines_robot15",
+                assert_eq!(vec!["section_machines_robot12",
+                                "section_machines_robot17",
                                 "render_machines_robot"],
                            names);
 
