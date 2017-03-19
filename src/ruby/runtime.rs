@@ -59,19 +59,13 @@ static VALUE context_fetch(VALUE stack, const char *key) {
             return value;
         }
     }
-    return Qnil;
+    return Qundef;
 }
 
 static VALUE fetch_path(VALUE stack, const struct path *path) {
     VALUE value = context_fetch(stack, path->keys[0]);
-    if (value == Qnil) {
-        return Qnil;
-    }
     for (long i = 1; i < path->length; i++) {
         value = fetch(value, path->keys[i]);
-        if (value == Qundef) {
-            return Qnil;
-        }
     }
     return value;
 }
