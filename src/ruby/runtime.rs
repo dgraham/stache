@@ -35,16 +35,12 @@ static VALUE fetch(VALUE context, const char *key) {
                 }
             }
         }
-        case T_STRUCT: {
-            VALUE sym = ID2SYM(rb_intern(key));
-            VALUE members = rb_struct_members(context);
-            if (RTEST(rb_ary_includes(members, sym))) {
-                return rb_struct_aref(context, sym);
-            } else {
-                return Qundef;
-            }
-        }
-        case T_OBJECT: {
+        case T_FALSE:
+            return Qfalse;
+        case T_NIL:
+        case T_UNDEF:
+            return Qundef;
+        default: {
             ID method = rb_intern(key);
             if (rb_respond_to(context, method)) {
                 return rb_funcall(context, method, 0);
@@ -52,8 +48,6 @@ static VALUE fetch(VALUE context, const char *key) {
                 return Qundef;
             }
         }
-        default:
-            return Qundef;
     }
 }
 

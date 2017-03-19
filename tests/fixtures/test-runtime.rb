@@ -71,8 +71,7 @@ describe Stache do
     end
 
     it 'replaces with struct context' do
-      Context = Struct.new(:name)
-      context = Context.new({ 'login' => 'hubot' })
+      context = Struct.new(:name).new({ 'login' => 'hubot' })
       value = subject.render('robot',context)
       assert_match /<strong>hubot<\/strong>/, value
     end
@@ -101,6 +100,63 @@ describe Stache do
       assert_raises(ArgumentError) do
         subject.render('robot', context)
       end
+    end
+  end
+
+  describe 'fetching a key from a type' do
+    it 'does not replace with nil method' do
+      context = { value: nil }
+      value = subject.render('types/nil', context)
+      assert_equal '', value.strip
+    end
+
+    it 'replaces with float method' do
+      context = { value: -42.0 }
+      value = subject.render('types/float', context)
+      assert_equal '42.0', value.strip
+    end
+
+    it 'replaces with string method' do
+      context = { value: 'CAPS' }
+      value = subject.render('types/string', context)
+      assert_equal 'caps', value.strip
+    end
+
+    it 'replaces with class method' do
+      context = { value: String }
+      value = subject.render('types/class', context)
+      assert_equal 'Object', value.strip
+    end
+
+    it 'replaces with array method' do
+      context = { value: [42] }
+      value = subject.render('types/array', context)
+      assert_equal 'true - 1', value.strip
+    end
+
+    it 'does not replace with hash method' do
+      context = { value: { name: 'hubot' } }
+      value = subject.render('types/hash', context)
+      assert_equal 'hubot -', value.strip
+    end
+
+    it 'replaces with struct method' do
+      type = Struct.new(:name)
+      context = { value: type.new('hubot') }
+      value = subject.render('types/struct', context)
+      assert_equal 'hubot - 1', value.strip
+    end
+
+    it 'replaces with true method' do
+      context = { value: true }
+      value = subject.render('types/boolean', context)
+      assert_match /\d+/, value
+    end
+
+    it 'does not replace with false method' do
+      context = { value: false}
+      value = subject.render('types/boolean', context)
+      assert_equal 'false', value.strip
     end
   end
 
