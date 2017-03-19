@@ -95,19 +95,17 @@ static void section(VALUE buf, VALUE stack, const struct path *path, void (*bloc
                 rb_ary_pop(stack);
             }
             break;
-        case T_HASH:
-        case T_OBJECT:
-        case T_STRUCT:
-            rb_ary_push(stack, value);
-            block(buf, stack);
-            rb_ary_pop(stack);
-            break;
         case T_NIL:
         case T_UNDEF:
         case T_FALSE:
             break;
-        default:
+        case T_TRUE:
             block(buf, stack);
+            break;
+        default:
+            rb_ary_push(stack, value);
+            block(buf, stack);
+            rb_ary_pop(stack);
             break;
     }
 }

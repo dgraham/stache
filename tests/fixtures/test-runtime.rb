@@ -160,6 +160,20 @@ describe Stache do
     end
   end
 
+  describe 'section tags' do
+    it 'integer key value pushes onto context stack' do
+      context = { value: -42 }
+      value = subject.render('sections/dot', context)
+      assert_equal '-42 42', value.strip
+    end
+
+    it 'true key value does not push context stack' do
+      context = { value: true }
+      value = subject.render('sections/true', context)
+      assert_equal context.to_s, value.strip
+    end
+  end
+
   describe 'template error handling' do
     it 'raises for template not found' do
       assert_raises(ArgumentError) do
