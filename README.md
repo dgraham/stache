@@ -19,6 +19,15 @@ $ cargo test
 $ cargo build
 ```
 
+Benchmark against [erubi] with:
+
+[erubi]: https://github.com/jeremyevans/erubi
+
+```
+$ gem install benchmark-ips erubi
+$ cargo test bench -- --ignored --nocapture
+```
+
 ## License
 
 Stache is released under the MIT license. Check the LICENSE file for details.

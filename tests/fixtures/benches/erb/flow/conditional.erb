@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Robots</title>
+  </head>
+  <body>
+    <h1><%= header %></h1>
+    <% if objects.any? %>
+      <ul>
+      <% objects.each do |entry| %>
+        <% if entry.droid %>
+          <li><a href="<%= entry.url %>"><%= entry.name %></a></li>
+        <% else %>
+          <li><a href="<%= entry.url %>"><%= entry.name %></a></li>
+        <% end %>
+      <% end %>
+      </ul>
+    <% else %>
+      <p>No robots here.</p>
+    <% end %>
+  </body>
+</html>

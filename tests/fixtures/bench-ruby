@@ -1,0 +1,88 @@
+#!/usr/bin/env ruby
+
+# frozen_string_literal: true
+
+require 'benchmark/ips'
+require 'erubi'
+
+# Temporary build directory.
+dir = ARGV[0]
+
+# Compile extension into shared object.
+Dir.chdir(dir) do
+  `ruby -r mkmf -e '$CFLAGS = "-std=c99"; create_makefile("stache")'`
+  `make`
+end
+
+# Load compiled extension.
+require "#{dir}/stache"
+
+class Robot
+  attr_reader :name, :droid, :url
+
+  def initialize(name:, droid:, url:)
+    @name = name
+    @droid = droid
+    @url = url
+  end
+
+  def to_h
+    {name: name, droid: droid, url: url}
+  end
+end
+
+class Context
+  def initialize
+    instance_eval %{
+      def erubi_flow_iterator; #{source('flow/iterator.erb')}; end
+      def erubi_flow_conditional; #{source('flow/conditional.erb')}; end
+      def erubi_fetch_hash; #{source('fetch/hash.erb')}; end
+      def erubi_fetch_object; #{source('fetch/object.erb')}; end
+    }
+  end
+
+  def header
+    'Robots'
+  end
+
+  def objects
+    @objects ||= [
+      Robot.new(name: 'Hubot', droid: false, url: '#hubot'),
+      Robot.new(name: 'Bender', droid: false, url: '#bender'),
+      Robot.new(name: 'BB-8', droid: true, url: '#bb-8')
+    ] * 5
+  end
+
+  def hashes
+    @hashes ||= objects.map(&:to_h)
+  end
+
+  private
+
+  def source(path)
+    root = File.absolute_path('../benches/erb', __FILE__)
+    template = File.read(File.join(root, path))
+    Erubi::Engine.new(template, escape: true).src
+  end
+end
+
+templates = Stache::Templates
+context = Context.new
+
+puts 'Running control flow benchmarks…'
+Benchmark.ips do |x|
+  x.report('stache iterator') { templates.render('mustache/flow/iterator', context) }
+  x.report('stache conditional') { templates.render('mustache/flow/conditional', context) }
+  x.report('erubi iterator') { context.erubi_flow_iterator }
+  x.report('erubi conditional') { context.erubi_flow_conditional }
+  x.compare!
+end
+
+puts 'Running data source benchmarks…'
+Benchmark.ips do |x|
+  x.report('stache hash') { templates.render('mustache/fetch/hash', context) }
+  x.report('stache object') { templates.render('mustache/fetch/object', context) }
+  x.report('erubi hash') { context.erubi_fetch_hash }
+  x.report('erubi object') { context.erubi_fetch_object }
+  x.compare!
+end

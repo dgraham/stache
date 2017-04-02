@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Robots</title>
+  </head>
+  <body>
+    <h1>{{header}}</h1>
+    {{#objects.any?}}
+      <ul>
+        {{#objects}}
+          {{#droid}}
+            <li><a href="{{url}}">{{name}}</a></li>
+          {{/droid}}
+          {{^droid}}
+            <li><a href="{{url}}">{{name}}</a></li>
+          {{/droid}}
+        {{/objects}}
+      </ul>
+    {{/objects.any?}}
+    {{^objects.any?}}
+      <p>No robots here.</p>
+    {{/objects.any?}}
+  </body>
+</html>
