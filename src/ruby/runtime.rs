@@ -3,9 +3,62 @@ pub const RUNTIME: &'static str = r#"
 #include <stdbool.h>
 #include <string.h>
 
+static void html_escaped_cat(VALUE str, char c) {
+    switch (c) {
+        case '\'':
+            rb_str_cat_cstr(str, "&#39;");
+            break;
+        case '&':
+            rb_str_cat_cstr(str, "&amp;");
+            break;
+        case '"':
+            rb_str_cat_cstr(str, "&quot;");
+            break;
+        case '<':
+            rb_str_cat_cstr(str, "&lt;");
+            break;
+        case '>':
+            rb_str_cat_cstr(str, "&gt;");
+            break;
+    }
+}
+
+static VALUE optimized_escape_html(VALUE str) {
+    long beg = 0;
+    VALUE dest = 0;
+
+    const long len = RSTRING_LEN(str);
+    const char *cstr = RSTRING_PTR(str);
+
+    for (long i = 0; i < len; i++) {
+        switch (cstr[i]) {
+          case '\'':
+          case '&':
+          case '"':
+          case '<':
+          case '>':
+            if (!dest) {
+                dest = rb_str_buf_new(len);
+            }
+
+            rb_str_cat(dest, cstr + beg, i - beg);
+            beg = i + 1;
+
+            html_escaped_cat(dest, cstr[i]);
+            break;
+        }
+    }
+
+    if (dest) {
+        rb_str_cat(dest, cstr + beg, len - beg);
+        return dest;
+    } else {
+        return str;
+    }
+}
+
 static const char *DOT = ".";
 
-static ID id_escape_html;
 static ID id_key_p;
 static ID id_to_s;
 
@@ -82,7 +135,7 @@ static void append_value(VALUE buf, VALUE stack, const struct path *path, bool e
             value = rb_funcall(value, id_to_s, 0);
             break;
     }
-    rb_str_buf_append(buf, escape ? rb_funcall(cCGI, id_escape_html, 1, value) : value);
+    rb_str_buf_append(buf, escape ? optimized_escape_html(value) : value);
 }
 
 static void section(VALUE buf, VALUE stack, const struct path *path, void (*block)(VALUE, VALUE)) {
@@ -135,8 +188,6 @@ void Init_stache() {
     rb_define_singleton_method(Templates, "render", render, 2);
 
     rb_require("cgi");
-    cCGI = rb_const_get(rb_cObject, rb_intern("CGI"));
-    id_escape_html = rb_intern("escapeHTML");
     id_key_p = rb_intern("key?");
     id_to_s = rb_intern("to_s");
     initialize();
