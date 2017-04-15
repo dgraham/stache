@@ -59,8 +59,8 @@ static VALUE optimized_escape_html(VALUE str) {
 
 static const char *DOT = ".";
 
-static ID id_key_p;
 static ID id_to_s;
+static ID id_miss;
 
 static VALUE cCGI;
 
@@ -76,17 +76,17 @@ static VALUE fetch(VALUE context, const char *key) {
 
     switch (rb_type(context)) {
         case T_HASH: {
-            VALUE key_str = rb_str_new_cstr(key);
-            if (RTEST(rb_funcall(context, id_key_p, 1, key_str))) {
-                return rb_hash_aref(context, key_str);
-            } else {
-                VALUE sym = ID2SYM(rb_intern(key));
-                if (RTEST(rb_funcall(context, id_key_p, 1, sym))) {
-                    return rb_hash_aref(context, sym);
-                } else {
-                    return Qundef;
+            VALUE miss = ID2SYM(id_miss);
+            VALUE sym = ID2SYM(rb_intern(key));
+            VALUE value = rb_hash_lookup2(context, sym, miss);
+            if (value == miss) {
+                VALUE key_str = rb_str_new_cstr(key);
+                value = rb_hash_lookup2(context, key_str, miss);
+                if (value == miss) {
+                    value = Qundef;
                 }
             }
+            return value;
         }
         case T_FALSE:
             return Qfalse;
@@ -188,8 +188,8 @@ void Init_stache() {
     rb_define_singleton_method(Templates, "render", render, 2);
 
     rb_require("cgi");
-    id_key_p = rb_intern("key?");
     id_to_s = rb_intern("to_s");
+    id_miss = rb_intern("__stache__miss__");
     initialize();
 }
 "#;
