@@ -62,8 +62,6 @@ static const char *DOT = ".";
 static ID id_to_s;
 static ID id_miss;
 
-static VALUE cCGI;
-
 struct path {
     char *keys[16];
     int length;
@@ -187,7 +185,6 @@ void Init_stache() {
     VALUE Templates = rb_define_class_under(Stache, "Templates", rb_cObject);
     rb_define_singleton_method(Templates, "render", render, 2);
 
-    rb_require("cgi");
     id_to_s = rb_intern("to_s");
     id_miss = rb_intern("__stache__miss__");
     initialize();
