@@ -65,7 +65,7 @@ impl Compile for Program {
                  r#"static VALUE render(VALUE self, VALUE name, VALUE context) {{
                         const char *ptr = StringValuePtr(name);
                         const long length = RSTRING_LEN(name);
-                        VALUE buf = rb_str_buf_new(0);
+                        VALUE buf = rb_str_buf_new(2048);
                         VALUE stack = rb_ary_new_from_args(1, context);
                         {}
                         else {{
