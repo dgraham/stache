@@ -65,8 +65,8 @@ impl Compile for Program {
                  r#"static VALUE render(VALUE self, VALUE name, VALUE context) {{
                         const char *ptr = StringValuePtr(name);
                         const long length = RSTRING_LEN(name);
+                        const struct stack stack = {{ .data = context, .parent = NULL }};
                         VALUE buf = rb_str_buf_new(2048);
-                        VALUE stack = rb_ary_new_from_args(1, context);
                         {}
                         else {{
                             rb_raise(rb_eArgError, "Template not found");
@@ -193,7 +193,7 @@ impl Function {
 
         let export = self.export.as_ref().unwrap();
         Some(format!("if (length == {len} && strncmp(ptr, \"{path}\", {len}) == 0) {{
-                          {fun}(buf, stack);
+                          {fun}(buf, &stack);
                       }}",
                      len = export.len(),
                      path = export,
@@ -221,7 +221,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let render = Function {
                 name: format!("render_{}", id),
-                decl: format!("static void render_{}(VALUE buf, VALUE stack)", id),
+                decl: format!("static void render_{}(VALUE buf, const struct stack *stack)", id),
                 body: children,
                 export: Some(scope.base_name()),
             };
@@ -237,7 +237,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                decl: format!("static void {}(VALUE buf, VALUE stack)", name),
+                decl: format!("static void {}(VALUE buf, const struct stack *stack)", name),
                 name: name,
                 body: children,
                 export: None,
@@ -258,7 +258,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                decl: format!("static void {}(VALUE buf, VALUE stack)", name),
+                decl: format!("static void {}(VALUE buf, const struct stack *stack)", name),
                 name: name,
                 body: children,
                 export: None,

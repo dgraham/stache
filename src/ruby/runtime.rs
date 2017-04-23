@@ -62,6 +62,11 @@ static const char *DOT = ".";
 static ID id_to_s;
 static ID id_miss;
 
+struct stack {
+    VALUE data;
+    const struct stack *parent;
+};
+
 struct path {
     char *keys[16];
     int length;
@@ -102,18 +107,18 @@ static VALUE fetch(VALUE context, const char *key) {
     }
 }
 
-static VALUE context_fetch(VALUE stack, const char *key) {
-    for (long i = RARRAY_LEN(stack) - 1; i >= 0; i--) {
-        VALUE context = RARRAY_AREF(stack, i);
-        VALUE value = fetch(context, key);
+static VALUE context_fetch(const struct stack *stack, const char *key) {
+    do {
+        VALUE value = fetch(stack->data, key);
         if (value != Qundef) {
             return value;
         }
-    }
+    } while ((stack = stack->parent));
+
     return Qundef;
 }
 
-static VALUE fetch_path(VALUE stack, const struct path *path) {
+static VALUE fetch_path(const struct stack *stack, const struct path *path) {
     VALUE value = context_fetch(stack, path->keys[0]);
     for (long i = 1; i < path->length; i++) {
         value = fetch(value, path->keys[i]);
@@ -121,7 +126,7 @@ static VALUE fetch_path(VALUE stack, const struct path *path) {
     return value;
 }
 
-static void append_value(VALUE buf, VALUE stack, const struct path *path, bool escape) {
+static void append_value(VALUE buf, const struct stack *stack, const struct path *path, bool escape) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_NIL:
@@ -136,16 +141,17 @@ static void append_value(VALUE buf, VALUE stack, const struct path *path, bool e
     rb_str_buf_append(buf, escape ? optimized_escape_html(value) : value);
 }
 
-static void section(VALUE buf, VALUE stack, const struct path *path, void (*block)(VALUE, VALUE)) {
+static void section(VALUE buf, const struct stack *stack, const struct path *path, void (*block)(VALUE, const struct stack *)) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
-        case T_ARRAY:
+        case T_ARRAY: {
+            struct stack frame = { .parent = stack };
             for (long i = 0; i < RARRAY_LEN(value); i++) {
-                rb_ary_push(stack, RARRAY_AREF(value, i));
-                block(buf, stack);
-                rb_ary_pop(stack);
+                frame.data = RARRAY_AREF(value, i);
+                block(buf, &frame);
             }
             break;
+        }
         case T_NIL:
         case T_UNDEF:
         case T_FALSE:
@@ -153,15 +159,15 @@ static void section(VALUE buf, VALUE stack, const struct path *path, void (*bloc
         case T_TRUE:
             block(buf, stack);
             break;
-        default:
-            rb_ary_push(stack, value);
-            block(buf, stack);
-            rb_ary_pop(stack);
+        default: {
+            const struct stack frame = { .data = value, .parent = stack };
+            block(buf, &frame);
             break;
+        }
     }
 }
 
-static void inverted(VALUE buf, VALUE stack, const struct path *path, void (*block)(VALUE, VALUE)) {
+static void inverted(VALUE buf, const struct stack *stack, const struct path *path, void (*block)(VALUE, const struct stack *)) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_ARRAY:
