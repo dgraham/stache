@@ -25,9 +25,10 @@ end
 
 # Report test failures to cargo.
 success = true
+templates = Stache::Templates.new
 specs.each do |name, spec|
   spec['tests'].each_with_index do |test, index|
-    result = Stache::Templates.render("#{name}#{index}", test['data'])
+    result = templates.render("#{name}#{index}", test['data'])
     if result != test['expected']
       puts "\n#{name} - #{test['name']}"
       puts "expect: #{test['expected'].inspect}"

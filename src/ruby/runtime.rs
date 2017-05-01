@@ -61,11 +61,66 @@ static const char *DOT = ".";
 
 static ID id_to_s;
 static ID id_miss;
+static ID id_buf;
+static VALUE Buffer;
 
 struct stack {
     VALUE data;
     const struct stack *parent;
 };
+
+struct buffer {
+    char *data;
+    size_t capacity;
+    size_t length;
+};
+
+bool buffer_init(struct buffer *this) {
+    const size_t capacity = 2048;
+    char *data = malloc(capacity);
+    if (!data) {
+        return false;
+    }
+    this->data = data;
+    this->capacity = capacity;
+    this->length = 0;
+    return true;
+}
+
+void buffer_destroy(struct buffer *this) {
+    free(this->data);
+    this->data = NULL;
+    this->capacity = 0;
+    this->length = 0;
+}
+
+void buffer_clear(struct buffer *this) {
+    this->length = 0;
+}
+
+bool buffer_resize(struct buffer *this, size_t capacity) {
+    void *data = realloc(this->data, capacity);
+    if (!data) {
+        return false;
+    }
+    this->data = data;
+    this->capacity = capacity;
+    return true;
+}
+
+bool buffer_append(struct buffer *this, const char *value, size_t length) {
+    size_t min = this->length + length;
+    if (this->capacity < min) {
+        size_t ideal = this->capacity * 2;
+        size_t capacity = (min < ideal) ? ideal : min * 1.1;
+        if (!buffer_resize(this, capacity)) {
+            return false;
+        }
+    }
+    memcpy(this->data + this->length, value, length);
+    this->length += length;
+    return true;
+}
 
 struct path {
     char *keys[16];
@@ -126,7 +181,7 @@ static VALUE fetch_path(const struct stack *stack, const struct path *path) {
     return value;
 }
 
-static void append_value(VALUE buf, const struct stack *stack, const struct path *path, bool escape) {
+static void append_value(struct buffer *buf, const struct stack *stack, const struct path *path, bool escape) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_NIL:
@@ -138,10 +193,16 @@ static void append_value(VALUE buf, const struct stack *stack, const struct path
             value = rb_funcall(value, id_to_s, 0);
             break;
     }
-    rb_str_buf_append(buf, escape ? optimized_escape_html(value) : value);
+
+    value = escape ? optimized_escape_html(value) : value;
+
+    if (!buffer_append(buf, RSTRING_PTR(value), RSTRING_LEN(value))) {
+        buffer_clear(buf);
+        rb_raise(rb_eRuntimeError, "Memory allocation failed");
+    }
 }
 
-static void section(VALUE buf, const struct stack *stack, const struct path *path, void (*block)(VALUE, const struct stack *)) {
+static void section(struct buffer *buf, const struct stack *stack, const struct path *path, void (*block)(struct buffer *, const struct stack *)) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_ARRAY: {
@@ -167,7 +228,7 @@ static void section(VALUE buf, const struct stack *stack, const struct path *pat
     }
 }
 
-static void inverted(VALUE buf, const struct stack *stack, const struct path *path, void (*block)(VALUE, const struct stack *)) {
+static void inverted(struct buffer *buf, const struct stack *stack, const struct path *path, void (*block)(struct buffer *, const struct stack *)) {
     VALUE value = fetch_path(stack, path);
     switch (rb_type(value)) {
         case T_ARRAY:
@@ -184,15 +245,56 @@ static void inverted(VALUE buf, const struct stack *stack, const struct path *pa
 }
 
 static VALUE render(VALUE self, VALUE name, VALUE context);
-static void initialize();
+
+static void buffer_free(void *ptr) {
+    buffer_destroy(ptr);
+    free(ptr);
+}
+
+static size_t buffer_memsize(const void *ptr) {
+    return sizeof(struct buffer);
+}
+
+static const rb_data_type_t buffer_data_type = {
+    "stache-buffer",
+    {
+        0, // mark
+        buffer_free,
+        buffer_memsize
+    },
+    0, 0, RUBY_TYPED_FREE_IMMEDIATELY
+};
+
+static VALUE templates_init(VALUE self) {
+    struct buffer *buf = calloc(1, sizeof(struct buffer));
+    if (!buf) {
+        rb_raise(rb_eRuntimeError, "Memory allocation failed");
+    }
+    buffer_init(buf);
+
+    VALUE wrapper = TypedData_Wrap_Struct(Buffer, &buffer_data_type, buf);
+    rb_ivar_set(self, id_buf, wrapper);
+    return self;
+}
+
+static struct buffer *templates_get_buf(VALUE self) {
+    VALUE wrapper = rb_ivar_get(self, id_buf);
+    struct buffer *buf;
+    TypedData_Get_Struct(wrapper, struct buffer, &buffer_data_type, buf);
+    return buf;
+}
 
 void Init_stache() {
     VALUE Stache = rb_define_module("Stache");
+
     VALUE Templates = rb_define_class_under(Stache, "Templates", rb_cObject);
-    rb_define_singleton_method(Templates, "render", render, 2);
+    rb_define_method(Templates, "initialize", templates_init, 0);
+    rb_define_method(Templates, "render", render, 2);
+
+    Buffer = rb_define_class_under(Stache, "Buffer", rb_cData);
 
     id_to_s = rb_intern("to_s");
     id_miss = rb_intern("__stache__miss__");
-    initialize();
+    id_buf = rb_intern("@buf");
 }
 "#;

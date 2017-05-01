@@ -38,7 +38,7 @@ class ArgumentativeRobot < Robot
 end
 
 describe Stache do
-  subject { Stache::Templates }
+  subject { Stache::Templates.new }
 
   describe 'variable tag' do
     it 'replaces with hash context' do

@@ -42,7 +42,7 @@ impl Compile for Program {
 
         // Emit string content declarations.
         for string in &self.global.strings {
-            writeln!(buf, "{};", string.decl)?;
+            string.emit(buf)?;
         }
 
         writeln!(buf, "")?;
@@ -66,23 +66,18 @@ impl Compile for Program {
                         const char *ptr = StringValuePtr(name);
                         const long length = RSTRING_LEN(name);
                         const struct stack stack = {{ .data = context, .parent = NULL }};
-                        VALUE buf = rb_str_buf_new(2048);
+
+                        struct buffer *buf = templates_get_buf(self);
+                        buffer_clear(buf);
+
                         {}
                         else {{
                             rb_raise(rb_eArgError, "Template not found");
                         }}
-                        return buf;
+
+                        return rb_str_new(buf->data, buf->length);
                     }}"#,
-                 renders.join(" else "))?;
-
-        writeln!(buf, "")?;
-
-        // Emit initialize function.
-        writeln!(buf, "static void initialize() {{")?;
-        for string in &self.global.strings {
-            string.emit(buf)?;
-        }
-        writeln!(buf, "}}")
+                 renders.join(" else "))
     }
 }
 
@@ -143,11 +138,9 @@ impl Scope {
     }
 }
 
-
 #[derive(Debug)]
 struct StaticString {
     name: String,
-    decl: String,
     value: String,
     length: usize,
 }
@@ -155,14 +148,10 @@ struct StaticString {
 impl StaticString {
     /// Writes the raw content string global to the buffer.
     fn emit(&self, buf: &mut Write) -> io::Result<()> {
-        writeln!(buf, "{{")?;
-        writeln!(buf, "static const char* content = \"{}\";", self.value)?;
         writeln!(buf,
-                 "{} = rb_str_new_static(content, {});",
+                 "static const char *{} = \"{}\";",
                  self.name,
-                 self.length)?;
-        writeln!(buf, "rb_global_variable(&{});", self.name)?;
-        writeln!(buf, "}}")
+                 self.value)
     }
 }
 
@@ -221,7 +210,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let render = Function {
                 name: format!("render_{}", id),
-                decl: format!("static void render_{}(VALUE buf, const struct stack *stack)", id),
+                decl: format!("static void render_{}(struct buffer *buf, const struct stack *stack)", id),
                 body: children,
                 export: Some(scope.base_name()),
             };
@@ -237,7 +226,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                decl: format!("static void {}(VALUE buf, const struct stack *stack)", name),
+                decl: format!("static void {}(struct buffer *buf, const struct stack *stack)", name),
                 name: name,
                 body: children,
                 export: None,
@@ -258,7 +247,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                decl: format!("static void {}(VALUE buf, const struct stack *stack)", name),
+                decl: format!("static void {}(struct buffer *buf, const struct stack *stack)", name),
                 name: name,
                 body: children,
                 export: None,
@@ -279,15 +268,13 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
         Statement::Content(ref text) => {
             let content = clean(text);
 
-            let name = format!("content_{}", scope.next().name);
             let string = StaticString {
-                decl: format!("static VALUE {}", name),
-                name: name,
+                name: format!("content_{}", scope.next().name),
                 value: content,
                 length: text.len(),
             };
 
-            let append = format!("rb_str_buf_append(buf, {});", string.name);
+            let append = format!("buffer_append(buf, {}, {});", string.name, string.length);
 
             scope.content(string);
             Some(append)
