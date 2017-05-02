@@ -1,6 +1,6 @@
 [package]
 name = "stache"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["David Graham <david.malcom.graham@gmail.com>"]
 description = "A Mustache template compiler."
 repository = "https://github.com/dgraham/stache"
