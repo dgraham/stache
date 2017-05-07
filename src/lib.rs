@@ -928,7 +928,8 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()), Statement::Comment("b".into())];
+        let program = vec![Statement::Content("a\r\n".into()),
+                           Statement::Comment("b".into())];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }

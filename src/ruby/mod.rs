@@ -203,14 +203,16 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
             let id = scope.name.id();
 
             // Build private render function.
-            let children = block.statements
+            let children = block
+                .statements
                 .iter()
                 .filter_map(|stmt| transform(scope.next(), stmt))
                 .collect();
 
             let render = Function {
                 name: format!("render_{}", id),
-                decl: format!("static void render_{}(struct buffer *buf, const struct stack *stack)", id),
+                decl: format!("static void render_{}(struct buffer *buf, const struct stack *stack)",
+                              id),
                 body: children,
                 export: Some(scope.base_name()),
             };
@@ -219,14 +221,16 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
             None
         }
         Statement::Section(ref path, ref block) => {
-            let children = block.statements
+            let children = block
+                .statements
                 .iter()
                 .filter_map(|stmt| transform(scope.next(), stmt))
                 .collect();
 
             let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                decl: format!("static void {}(struct buffer *buf, const struct stack *stack)", name),
+                decl: format!("static void {}(struct buffer *buf, const struct stack *stack)",
+                              name),
                 name: name,
                 body: children,
                 export: None,
@@ -240,14 +244,16 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
             Some(call)
         }
         Statement::Inverted(ref path, ref block) => {
-            let children = block.statements
+            let children = block
+                .statements
                 .iter()
                 .filter_map(|stmt| transform(scope.next(), stmt))
                 .collect();
 
             let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                decl: format!("static void {}(struct buffer *buf, const struct stack *stack)", name),
+                decl: format!("static void {}(struct buffer *buf, const struct stack *stack)",
+                              name),
                 name: name,
                 body: children,
                 export: None,
@@ -296,7 +302,8 @@ pub fn link(templates: &Vec<Template>) -> Result<Program, ParseError> {
     validate(templates)?;
 
     let mut program = Program::new();
-    templates.iter()
+    templates
+        .iter()
         .map(|template| {
             let mut scope = Scope::new(template.name());
             transform(&mut scope, &template.tree);

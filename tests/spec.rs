@@ -35,12 +35,14 @@ fn ruby() {
 fn templates() -> Vec<Template> {
     let base = PathBuf::from("ext/spec/specs");
     let files = vec!["comments", "interpolation", "inverted", "sections"];
-    files.iter()
+    files
+        .iter()
         .flat_map(|name| {
             let path = base.join(name).with_extension("yml");
             let spec = document(&path);
             let tests = spec["tests"].as_vec().unwrap();
-            tests.iter()
+            tests
+                .iter()
                 .enumerate()
                 .map(|(index, test)| {
                     let template = test["template"].as_str().unwrap();

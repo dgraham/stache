@@ -1,0 +1,2 @@
+chain_one_line_max = 80
+closure_block_indent_threshold = 0
