@@ -123,13 +123,7 @@ impl Statement {
                     .flat_map(|stmt| stmt.partials())
                     .collect()
             }
-            Statement::Section(_, ref block) => {
-                block
-                    .statements
-                    .iter()
-                    .flat_map(|stmt| stmt.partials())
-                    .collect()
-            }
+            Statement::Section(_, ref block) |
             Statement::Inverted(_, ref block) => {
                 block
                     .statements
