@@ -60,24 +60,31 @@ impl Compile for Program {
         }
 
         // Emit public render function.
-        let renders: Vec<_> = self.global.functions.iter().filter_map(|f| f.invoke_if()).collect();
-        writeln!(buf,
-                 r#"static VALUE render(VALUE self, VALUE name, VALUE context) {{
-                        const char *ptr = StringValuePtr(name);
-                        const long length = RSTRING_LEN(name);
-                        const struct stack stack = {{ .data = context, .parent = NULL }};
+        let renders: Vec<_> = self.global
+            .functions
+            .iter()
+            .filter_map(|f| f.invoke_if())
+            .collect();
 
-                        struct buffer *buf = templates_get_buf(self);
-                        buffer_clear(buf);
+        writeln!(
+            buf,
+            r#"static VALUE render(VALUE self, VALUE name, VALUE context) {{
+                   const char *ptr = StringValuePtr(name);
+                   const long length = RSTRING_LEN(name);
+                   const struct stack stack = {{ .data = context, .parent = NULL }};
 
-                        {}
-                        else {{
-                            rb_raise(rb_eArgError, "Template not found");
-                        }}
+                   struct buffer *buf = templates_get_buf(self);
+                   buffer_clear(buf);
 
-                        return rb_str_new(buf->data, buf->length);
-                    }}"#,
-                 renders.join(" else "))
+                   {}
+                   else {{
+                       rb_raise(rb_eArgError, "Template not found");
+                   }}
+
+                   return rb_str_new(buf->data, buf->length);
+               }}"#,
+            renders.join(" else ")
+        )
     }
 }
 
@@ -148,10 +155,12 @@ struct StaticString {
 impl StaticString {
     /// Writes the raw content string global to the buffer.
     fn emit(&self, buf: &mut Write) -> io::Result<()> {
-        writeln!(buf,
-                 "static const char *{} = \"{}\";",
-                 self.name,
-                 self.value)
+        writeln!(
+            buf,
+            "static const char *{} = \"{}\";",
+            self.name,
+            self.value
+        )
     }
 }
 
@@ -181,12 +190,14 @@ impl Function {
         }
 
         let export = self.export.as_ref().unwrap();
-        Some(format!("if (length == {len} && strncmp(ptr, \"{path}\", {len}) == 0) {{
-                          {fun}(buf, &stack);
-                      }}",
-                     len = export.len(),
-                     path = export,
-                     fun = self.name))
+        Some(format!(
+            "if (length == {len} && strncmp(ptr, \"{path}\", {len}) == 0) {{
+                 {fun}(buf, &stack);
+             }}",
+            len = export.len(),
+            path = export,
+            fun = self.name
+        ))
     }
 }
 
@@ -211,8 +222,10 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let render = Function {
                 name: format!("render_{}", id),
-                decl: format!("static void render_{}(struct buffer *buf, const struct stack *stack)",
-                              id),
+                decl: format!(
+                    "static void render_{}(struct buffer *buf, const struct stack *stack)",
+                    id
+                ),
                 body: children,
                 export: Some(scope.base_name()),
             };
@@ -229,16 +242,20 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                decl: format!("static void {}(struct buffer *buf, const struct stack *stack)",
-                              name),
+                decl: format!(
+                    "static void {}(struct buffer *buf, const struct stack *stack)",
+                    name
+                ),
                 name: name,
                 body: children,
                 export: None,
             };
 
-            let call = format!("{{ {} section(buf, stack, &path, {}); }}",
-                               path_ary(path),
-                               fun.name);
+            let call = format!(
+                "{{ {} section(buf, stack, &path, {}); }}",
+                path_ary(path),
+                fun.name
+            );
 
             scope.register(fun);
             Some(call)
@@ -252,16 +269,20 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
 
             let name = format!("section_{}", scope.next().name);
             let fun = Function {
-                decl: format!("static void {}(struct buffer *buf, const struct stack *stack)",
-                              name),
+                decl: format!(
+                    "static void {}(struct buffer *buf, const struct stack *stack)",
+                    name
+                ),
                 name: name,
                 body: children,
                 export: None,
             };
 
-            let call = format!("{{ {} inverted(buf, stack, &path, {}); }}",
-                               path_ary(path),
-                               fun.name);
+            let call = format!(
+                "{{ {} inverted(buf, stack, &path, {}); }}",
+                path_ary(path),
+                fun.name
+            );
 
             scope.register(fun);
             Some(call)
@@ -287,11 +308,17 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
         }
         Statement::Variable(ref path) => {
             let path = path_ary(path);
-            Some(format!("{{ {} append_value(buf, stack, &path, true); }}", path))
+            Some(format!(
+                "{{ {} append_value(buf, stack, &path, true); }}",
+                path
+            ))
         }
         Statement::Html(ref path) => {
             let path = path_ary(path);
-            Some(format!("{{ {} append_value(buf, stack, &path, false); }}", path))
+            Some(format!(
+                "{{ {} append_value(buf, stack, &path, false); }}",
+                path
+            ))
         }
     }
 }
@@ -329,7 +356,10 @@ fn validate(templates: &Vec<Template>) -> Result<(), ParseError> {
         let missing = &names - &all;
         if !missing.is_empty() {
             let name = missing.into_iter().next().unwrap();
-            return Err(ParseError::UnknownPartial(name.clone(), template.path.clone()));
+            return Err(ParseError::UnknownPartial(
+                name.clone(),
+                template.path.clone(),
+            ));
         }
     }
 
@@ -362,9 +392,11 @@ fn path_ary(path: &Path) -> String {
         .collect::<Vec<String>>()
         .join(", ");
 
-    format!("static const struct path path = {{ .keys = {{ {} }}, .length = {} }};",
-            args,
-            path.keys.len())
+    format!(
+        "static const struct path path = {{ .keys = {{ {} }}, .length = {} }};",
+        args,
+        path.keys.len()
+    )
 }
 
 #[cfg(test)]
@@ -437,14 +469,21 @@ mod tests {
 
                 // One for each section, private render, and exported template function.
                 let names: Vec<_> = scope.functions.iter().map(|fun| &fun.name).collect();
-                assert_eq!(vec!["section_machines_robot12",
-                                "section_machines_robot17",
-                                "render_machines_robot"],
-                           names);
+                assert_eq!(
+                    vec![
+                        "section_machines_robot12",
+                        "section_machines_robot17",
+                        "render_machines_robot",
+                    ],
+                    names
+                );
 
                 // Single exported function name.
-                let exports: Vec<_> =
-                    scope.functions.iter().filter_map(|fun| fun.export.as_ref()).collect();
+                let exports: Vec<_> = scope
+                    .functions
+                    .iter()
+                    .filter_map(|fun| fun.export.as_ref())
+                    .collect();
                 assert_eq!(vec!["machines/robot"], exports);
             }
             Err(e) => panic!("Failed to parse tree: {}", e),

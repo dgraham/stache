@@ -27,7 +27,8 @@ pub trait Compile {
 
     /// Saves the translated source code to a file.
     fn write<P>(&self, output: P) -> io::Result<()>
-        where P: AsRef<std::path::Path>
+    where
+        P: AsRef<std::path::Path>,
     {
         File::create(output)
             .map(|file| BufWriter::new(file))
@@ -116,13 +117,25 @@ impl Statement {
     pub fn partials<'a>(&'a self) -> Vec<&'a String> {
         match *self {
             Statement::Program(ref block) => {
-                block.statements.iter().flat_map(|stmt| stmt.partials()).collect()
+                block
+                    .statements
+                    .iter()
+                    .flat_map(|stmt| stmt.partials())
+                    .collect()
             }
             Statement::Section(_, ref block) => {
-                block.statements.iter().flat_map(|stmt| stmt.partials()).collect()
+                block
+                    .statements
+                    .iter()
+                    .flat_map(|stmt| stmt.partials())
+                    .collect()
             }
             Statement::Inverted(_, ref block) => {
-                block.statements.iter().flat_map(|stmt| stmt.partials()).collect()
+                block
+                    .statements
+                    .iter()
+                    .flat_map(|stmt| stmt.partials())
+                    .collect()
             }
             Statement::Partial(ref name, _) => vec![name],
             _ => Vec::new(),
@@ -450,8 +463,10 @@ mod tests {
     fn append() {
         let mut block = Block::new(vec![Statement::Comment("a".into())]);
         block.append(Statement::Content("b".into()));
-        let expected = Block::new(vec![Statement::Comment("a".into()),
-                                       Statement::Content("b".into())]);
+        let expected = Block::new(vec![
+            Statement::Comment("a".into()),
+            Statement::Content("b".into()),
+        ]);
         assert_eq!(expected, block);
     }
 
@@ -466,8 +481,10 @@ mod tests {
     fn prepend() {
         let mut block = Block::new(vec![Statement::Comment("a".into())]);
         block.prepend(Statement::Content("b".into()));
-        let expected = Block::new(vec![Statement::Content("b".into()),
-                                       Statement::Comment("a".into())]);
+        let expected = Block::new(vec![
+            Statement::Content("b".into()),
+            Statement::Comment("a".into()),
+        ]);
         assert_eq!(expected, block);
     }
 
@@ -502,10 +519,12 @@ mod tests {
         assert!(parser.path());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::path, 0, 6),
-                            Token::new(Rule::identifier, 0, 1),
-                            Token::new(Rule::identifier, 2, 3),
-                            Token::new(Rule::identifier, 4, 6)];
+        let expected = vec![
+            Token::new(Rule::path, 0, 6),
+            Token::new(Rule::identifier, 0, 1),
+            Token::new(Rule::identifier, 2, 3),
+            Token::new(Rule::identifier, 4, 6),
+        ];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -532,9 +551,11 @@ mod tests {
         assert!(parser.variable());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::variable, 0, 7),
-                            Token::new(Rule::path, 3, 4),
-                            Token::new(Rule::identifier, 3, 4)];
+        let expected = vec![
+            Token::new(Rule::variable, 0, 7),
+            Token::new(Rule::path, 3, 4),
+            Token::new(Rule::identifier, 3, 4),
+        ];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -544,9 +565,11 @@ mod tests {
         assert!(parser.variable());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::variable, 0, 7),
-                            Token::new(Rule::path, 3, 4),
-                            Token::new(Rule::dot, 3, 4)];
+        let expected = vec![
+            Token::new(Rule::variable, 0, 7),
+            Token::new(Rule::path, 3, 4),
+            Token::new(Rule::dot, 3, 4),
+        ];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -556,9 +579,11 @@ mod tests {
         assert!(parser.html());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::html, 0, 9),
-                            Token::new(Rule::path, 4, 5),
-                            Token::new(Rule::identifier, 4, 5)];
+        let expected = vec![
+            Token::new(Rule::html, 0, 9),
+            Token::new(Rule::path, 4, 5),
+            Token::new(Rule::identifier, 4, 5),
+        ];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -568,9 +593,11 @@ mod tests {
         assert!(parser.html());
         assert!(parser.end());
 
-        let expected = vec![Token::new(Rule::html, 0, 8),
-                            Token::new(Rule::path, 4, 5),
-                            Token::new(Rule::identifier, 4, 5)];
+        let expected = vec![
+            Token::new(Rule::html, 0, 8),
+            Token::new(Rule::path, 4, 5),
+            Token::new(Rule::identifier, 4, 5),
+        ];
         assert_eq!(&expected, parser.queue());
     }
 
@@ -580,10 +607,14 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a".into()),
-                           Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("c".into())])),
-                           Statement::Content("d".into())];
+        let program = vec![
+            Statement::Content("a".into()),
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c".into())])
+            ),
+            Statement::Content("d".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -594,10 +625,14 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a".into()),
-                           Statement::Inverted(Path::new(vec!["b".into()]),
-                                               Block::new(vec![Statement::Content("c".into())])),
-                           Statement::Content("d".into())];
+        let program = vec![
+            Statement::Content("a".into()),
+            Statement::Inverted(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c".into())])
+            ),
+            Statement::Content("d".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -608,9 +643,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("\r\n".into()),
-                           Statement::Inverted(Path::new(vec!["boolean".into()]),
-                                               Block::new(vec![]))];
+        let program =
+            vec![
+                Statement::Content("\r\n".into()),
+                Statement::Inverted(Path::new(vec!["boolean".into()]), Block::new(vec![])),
+            ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -621,8 +658,10 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Inverted(Path::new(vec!["boolean".into()]),
-                                               Block::new(vec![]))];
+        let program =
+            vec![
+                Statement::Inverted(Path::new(vec!["boolean".into()]), Block::new(vec![])),
+            ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -633,11 +672,15 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("c".into())])),
-                           Statement::Content("\n".into()),
-                           Statement::Content("d".into())];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c".into())])
+            ),
+            Statement::Content("\n".into()),
+            Statement::Content("d".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -648,10 +691,14 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\n".into()),
-                           Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("c\n".into())])),
-                           Statement::Content("d".into())];
+        let program = vec![
+            Statement::Content("a\n".into()),
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c\n".into())])
+            ),
+            Statement::Content("d".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -662,11 +709,14 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\n".into()),
-                           Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("    c\n"
-                                                                  .into())])),
-                           Statement::Content("d".into())];
+        let program = vec![
+            Statement::Content("a\n".into()),
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("    c\n".into())])
+            ),
+            Statement::Content("d".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -677,8 +727,12 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("c\n".into())]))];
+        let program = vec![
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c\n".into())])
+            ),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -689,8 +743,12 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("c".into())]))];
+        let program = vec![
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c".into())])
+            ),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -701,8 +759,12 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("c\n".into())]))];
+        let program = vec![
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c\n".into())])
+            ),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -713,10 +775,13 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a".into()),
-                           Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("\nc\n"
-                                                                  .into())]))];
+        let program = vec![
+            Statement::Content("a".into()),
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("\nc\n".into())])
+            ),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -727,10 +792,13 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("c\n  "
-                                                                  .into())])),
-                           Statement::Content(" a".into())];
+        let program = vec![
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c\n  ".into())])
+            ),
+            Statement::Content(" a".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -741,11 +809,14 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Section(Path::new(vec!["b".into()]),
-                                              Block::new(vec![Statement::Content("c\n d "
-                                                                  .into())])),
-                           Statement::Content("\n".into()),
-                           Statement::Content("a".into())];
+        let program = vec![
+            Statement::Section(
+                Path::new(vec!["b".into()]),
+                Block::new(vec![Statement::Content("c\n d ".into())])
+            ),
+            Statement::Content("\n".into()),
+            Statement::Content("a".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -756,9 +827,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a ".into()),
-                           Statement::Partial("b".into(), None),
-                           Statement::Content(" c".into())];
+        let program = vec![
+            Statement::Content("a ".into()),
+            Statement::Partial("b".into(), None),
+            Statement::Content(" c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -769,9 +842,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a".into()),
-                           Statement::Content(" ".into()),
-                           Statement::Partial("b".into(), None)];
+        let program = vec![
+            Statement::Content("a".into()),
+            Statement::Content(" ".into()),
+            Statement::Partial("b".into(), None),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -782,11 +857,13 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a".into()),
-                           Statement::Content(" ".into()),
-                           Statement::Partial("b".into(), None),
-                           Statement::Content("\n".into()),
-                           Statement::Content("c".into())];
+        let program = vec![
+            Statement::Content("a".into()),
+            Statement::Content(" ".into()),
+            Statement::Partial("b".into(), None),
+            Statement::Content("\n".into()),
+            Statement::Content("c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -797,9 +874,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Partial("b".into(), None),
-                           Statement::Content("c".into())];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Partial("b".into(), None),
+            Statement::Content("c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -810,9 +889,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Partial("b".into(), Some("  ".into())),
-                           Statement::Content("c".into())];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Partial("b".into(), Some("  ".into())),
+            Statement::Content("c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -823,9 +904,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Partial("b".into(), None),
-                           Statement::Content("c".into())];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Partial("b".into(), None),
+            Statement::Content("c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -836,8 +919,10 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Partial("b".into(), Some("  ".into()))];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Partial("b".into(), Some("  ".into())),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -848,9 +933,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a ".into()),
-                           Statement::Comment("b".into()),
-                           Statement::Content(" c".into())];
+        let program = vec![
+            Statement::Content("a ".into()),
+            Statement::Comment("b".into()),
+            Statement::Content(" c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -861,9 +948,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a".into()),
-                           Statement::Content(" ".into()),
-                           Statement::Comment("b".into())];
+        let program = vec![
+            Statement::Content("a".into()),
+            Statement::Content(" ".into()),
+            Statement::Comment("b".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -874,11 +963,13 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a".into()),
-                           Statement::Content(" ".into()),
-                           Statement::Comment("b".into()),
-                           Statement::Content("\n".into()),
-                           Statement::Content("c".into())];
+        let program = vec![
+            Statement::Content("a".into()),
+            Statement::Content(" ".into()),
+            Statement::Comment("b".into()),
+            Statement::Content("\n".into()),
+            Statement::Content("c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -889,9 +980,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Comment("b".into()),
-                           Statement::Content("c".into())];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Comment("b".into()),
+            Statement::Content("c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -902,9 +995,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Comment("b".into()),
-                           Statement::Content("c".into())];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Comment("b".into()),
+            Statement::Content("c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -915,9 +1010,11 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Comment("b".into()),
-                           Statement::Content("c".into())];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Comment("b".into()),
+            Statement::Content("c".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
@@ -928,15 +1025,18 @@ mod tests {
         assert!(parser.program());
         assert!(parser.end());
 
-        let program = vec![Statement::Content("a\r\n".into()),
-                           Statement::Comment("b".into())];
+        let program = vec![
+            Statement::Content("a\r\n".into()),
+            Statement::Comment("b".into()),
+        ];
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());
     }
 
     #[test]
     fn tree() {
-        let mut parser = Rdp::new(StringInput::new("
+        let mut parser = Rdp::new(StringInput::new(
+            "
             {{> includes/header }}
             <ul>
                 {{# robots}}
@@ -949,29 +1049,42 @@ mod tests {
             </ul>
             {{> includes/footer }}
             {{{ unescaped.html }}}
-        "));
+        ",
+        ));
 
         assert!(parser.program());
         assert!(parser.end());
 
 
-        let program =
-            vec![Statement::Content("\n".into()),
-                 Statement::Partial("includes/header".into(), Some("            ".into())),
-                 Statement::Content("            <ul>\n".into()),
-                 Statement::Section(Path::new(vec!["robots".into()]),
-                                    Block::new(vec![Statement::Content("                    <li>".into()),
-                                                    Statement::Variable(Path::new(vec!["name".into(),
-                                                                                       "first".into()])),
-                                                    Statement::Content("</li>\n".into())])),
-                 Statement::Inverted(Path::new(vec!["robots".into()]),
-                                     Block::new(vec![Statement::Comment("else clause".into()),
-                                                     Statement::Content("                    No robots\n".into())])),
-                 Statement::Content("            </ul>\n".into()),
-                 Statement::Partial("includes/footer".into(), Some("            ".into())),
-                 Statement::Content("            ".into()),
-                 Statement::Html(Path::new(vec!["unescaped".into(), "html".into()])),
-                 Statement::Content("\n        ".into())];
+        let program = vec![
+            Statement::Content("\n".into()),
+            Statement::Partial("includes/header".into(), Some("            ".into())),
+            Statement::Content("            <ul>\n".into()),
+            Statement::Section(
+                Path::new(vec!["robots".into()]),
+                Block::new(vec![
+                    Statement::Content("                    <li>".into()),
+                    Statement::Variable(
+                        Path::new(vec!["name".into(), "first".into()])
+                    ),
+                    Statement::Content("</li>\n".into()),
+                ])
+            ),
+            Statement::Inverted(
+                Path::new(vec!["robots".into()]),
+                Block::new(vec![
+                    Statement::Comment("else clause".into()),
+                    Statement::Content(
+                        "                    No robots\n".into()
+                    ),
+                ])
+            ),
+            Statement::Content("            </ul>\n".into()),
+            Statement::Partial("includes/footer".into(), Some("            ".into())),
+            Statement::Content("            ".into()),
+            Statement::Html(Path::new(vec!["unescaped".into(), "html".into()])),
+            Statement::Content("\n        ".into()),
+        ];
 
         let expected = Statement::Program(Block::new(program));
         assert_eq!(expected, parser.tree());

@@ -16,7 +16,8 @@ pub struct Template {
 impl Template {
     /// Parses each template file in the directory tree.
     pub fn parse<P>(directory: P) -> io::Result<Vec<Template>>
-        where P: AsRef<Path>
+    where
+        P: AsRef<Path>,
     {
         let base = directory.as_ref();
         parse_dir(base, base)
