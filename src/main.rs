@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::process::exit;
 
 use getopts::Options;
-use stache::{Compile, Template};
 use stache::ruby;
+use stache::{Compile, Template};
 
 enum Target {
     Ruby,
@@ -59,16 +59,14 @@ fn main() {
     };
 
     let target = match matches.opt_str("e") {
-        Some(lang) => {
-            match lang.as_str() {
-                "ruby" => Target::Ruby,
-                _ => {
-                    usage(&opts);
-                    println!("Unsupported compilation target");
-                    exit(1);
-                }
+        Some(lang) => match lang.as_str() {
+            "ruby" => Target::Ruby,
+            _ => {
+                usage(&opts);
+                println!("Unsupported compilation target");
+                exit(1);
             }
-        }
+        },
         None => {
             usage(&opts);
             exit(1);
@@ -84,11 +82,9 @@ fn main() {
     };
 
     let done = match target {
-        Target::Ruby => {
-            ruby::link(&templates)
-                .map_err(|e| io::Error::new(ErrorKind::Other, e))
-                .and_then(|program| program.write(&output))
-        }
+        Target::Ruby => ruby::link(&templates)
+            .map_err(|e| io::Error::new(ErrorKind::Other, e))
+            .and_then(|program| program.write(&output)),
     };
 
     match done {

@@ -5,8 +5,8 @@ use std::io::Error;
 use std::process::Command;
 use tempdir::TempDir;
 
-use stache::{Compile, Template};
 use stache::ruby;
+use stache::{Compile, Template};
 
 #[test]
 fn ruby() {

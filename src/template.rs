@@ -88,8 +88,8 @@ fn parse(path: &Path) -> io::Result<Statement> {
 
 #[cfg(test)]
 mod tests {
-    use super::Template;
     use super::super::Statement;
+    use super::Template;
     use std::path::PathBuf;
 
     #[test]

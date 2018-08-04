@@ -4,8 +4,8 @@ use regex::Regex;
 use std::collections::HashSet;
 use std::io::{self, Write};
 
-use super::{Compile, Name, ParseError, Path, Statement, Template};
 use self::runtime::RUNTIME;
+use super::{Compile, Name, ParseError, Path, Statement, Template};
 
 mod runtime;
 
@@ -21,7 +21,9 @@ pub struct Program {
 
 impl Program {
     fn new() -> Self {
-        Program { global: Scope::new(Name::new("global")) }
+        Program {
+            global: Scope::new(Name::new("global")),
+        }
     }
 
     fn merge(&mut self, scope: Scope) -> &mut Self {
@@ -60,7 +62,8 @@ impl Compile for Program {
         }
 
         // Emit public render function.
-        let renders: Vec<_> = self.global
+        let renders: Vec<_> = self
+            .global
             .functions
             .iter()
             .filter_map(|f| f.invoke_if())
@@ -158,8 +161,7 @@ impl StaticString {
         writeln!(
             buf,
             "static const char *{} = \"{}\";",
-            self.name,
-            self.value
+            self.name, self.value
         )
     }
 }
@@ -386,7 +388,8 @@ fn clean(text: &str) -> String {
 /// Ruby array. At runtime, each key in the array is recursively processed to
 /// find the replacement text for a Mustache expression.
 fn path_ary(path: &Path) -> String {
-    let args = path.keys
+    let args = path
+        .keys
         .iter()
         .map(|key| format!("\"{}\"", key))
         .collect::<Vec<String>>()
@@ -401,8 +404,8 @@ fn path_ary(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{link, transform, Scope};
     use super::super::{Name, ParseError, Statement, Template};
+    use super::{link, transform, Scope};
     use std::path::{Path, PathBuf};
 
     #[test]

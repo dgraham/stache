@@ -7,8 +7,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use stache::{Compile, Statement, Template};
 use stache::ruby;
+use stache::{Compile, Statement, Template};
 
 use tempdir::TempDir;
 use yaml_rust::{Yaml, YamlLoader};
