@@ -38,7 +38,7 @@ impl Compile for Program {
     /// This emits fully-formed Ruby extension source code that may be input
     /// into a mkmf build process, creating a dynamically loadable shared
     /// object file.
-    fn emit(&self, buf: &mut Write) -> io::Result<()> {
+    fn emit(&self, buf: &mut dyn Write) -> io::Result<()> {
         // Emit runtime preamble.
         writeln!(buf, "{}", RUNTIME)?;
 
@@ -157,7 +157,7 @@ struct StaticString {
 
 impl StaticString {
     /// Writes the raw content string global to the buffer.
-    fn emit(&self, buf: &mut Write) -> io::Result<()> {
+    fn emit(&self, buf: &mut dyn Write) -> io::Result<()> {
         writeln!(
             buf,
             "static const char *{} = \"{}\";",
@@ -176,7 +176,7 @@ struct Function {
 
 impl Function {
     /// Writes the function definition to the buffer.
-    fn emit(&self, buf: &mut Write) -> io::Result<()> {
+    fn emit(&self, buf: &mut dyn Write) -> io::Result<()> {
         writeln!(buf, "{} {{", self.decl)?;
         for node in &self.body {
             writeln!(buf, "{}", node)?;
@@ -289,7 +289,7 @@ fn transform(scope: &mut Scope, node: &Statement) -> Option<String> {
             scope.register(fun);
             Some(call)
         }
-        Statement::Partial(ref name, ref padding) => {
+        Statement::Partial(ref name, ref _padding) => {
             let name = Name::new(name);
             Some(format!("render_{}(buf, stack);", name.id()))
         }

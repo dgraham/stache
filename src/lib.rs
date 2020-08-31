@@ -23,7 +23,7 @@ mod template;
 /// compiler driver treats the result of each backend identically.
 pub trait Compile {
     /// Writes the final translated source code to an output buffer.
-    fn emit(&self, buf: &mut Write) -> io::Result<()>;
+    fn emit(&self, buf: &mut dyn Write) -> io::Result<()>;
 
     /// Saves the translated source code to a file.
     fn write<P>(&self, output: P) -> io::Result<()>

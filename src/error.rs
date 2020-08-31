@@ -29,7 +29,7 @@ impl Error for ParseError {
         }
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         match *self {
             _ => None,
         }
